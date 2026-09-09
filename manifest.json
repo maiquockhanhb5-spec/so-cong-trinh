@@ -1,0 +1,17 @@
+{
+  "name": "Dự Án MIK Cổ Loa",
+  "short_name": "MIK Cổ Loa",
+  "description": "Quản lý tài chính, kho vật tư và thi công dự án",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0e16",
+  "theme_color": "#0a0e16",
+  "orientation": "portrait-primary",
+  "lang": "vi",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
