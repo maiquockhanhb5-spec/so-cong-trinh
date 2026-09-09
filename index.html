@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MIK Cổ Loa">
-<title>Dự Án MIK Cổ Loa</title>
+<title>Tuấn Tú Group</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
@@ -312,7 +312,8 @@
 /* ---------- storage ---------- */
 const LS = {
   users:'sct_users', session:'sct_session', finance:'sct_finance',
-  materials:'sct_materials', construction:'sct_construction'
+  materials:'sct_materials', construction:'sct_construction',
+  staffCt:'sct_staff_ct', staffTd:'sct_staff_td'
 };
 function load(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -409,6 +410,20 @@ function normalizeConstruction(rows){
     photos: pick(r,'photos') ? String(pick(r,'photos')).split(',').map(s=>s.trim()).filter(Boolean) : []
   }));
 }
+function normalizeStaffCt(rows){
+  return rows.map(r => ({
+    id:Number(pick(r,'id'))||0, name:String(pick(r,'name')||''), position:String(pick(r,'position')||''),
+    phone:String(pick(r,'phone')||''), startDate:normalizeDate(pick(r,'startDate')), salary:Number(pick(r,'salary'))||0,
+    status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||'')
+  }));
+}
+function normalizeStaffTd(rows){
+  return rows.map(r => ({
+    id:Number(pick(r,'id'))||0, name:String(pick(r,'name')||''), team:String(pick(r,'team')||''), role:String(pick(r,'role')||''),
+    phone:String(pick(r,'phone')||''), startDate:normalizeDate(pick(r,'startDate')), wage:Number(pick(r,'wage'))||0,
+    status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||'')
+  }));
+}
 async function syncAllFromServer(){
   if(!API_URL) return;
   setSyncStatus('syncing');
@@ -418,6 +433,8 @@ async function syncAllFromServer(){
     if(data.finance) save(LS.finance, normalizeFinance(data.finance));
     if(data.materials) save(LS.materials, normalizeMaterials(data.materials));
     if(data.construction) save(LS.construction, normalizeConstruction(data.construction));
+    if(data.staffCt) save(LS.staffCt, normalizeStaffCt(data.staffCt));
+    if(data.staffTd) save(LS.staffTd, normalizeStaffTd(data.staffTd));
     setSyncStatus('online');
     render();
   }catch(err){
@@ -431,7 +448,9 @@ function seed(){
       {username:'admin', password:'admin123', role:'admin', module:null, fullName:'Quản trị viên'},
       {username:'ketoan', password:'ketoan123', role:'editor', module:'tai_chinh', fullName:'Kế toán công trình'},
       {username:'thukho', password:'thukho123', role:'editor', module:'kho', fullName:'Thủ kho'},
-      {username:'kythuat', password:'kythuat123', role:'editor', module:'thi_cong', fullName:'Kỹ thuật thi công'}
+      {username:'kythuat', password:'kythuat123', role:'editor', module:'thi_cong', fullName:'Kỹ thuật thi công'},
+      {username:'hanhchinh', password:'hanhchinh123', role:'editor', module:'nhansu_ct', fullName:'Hành chính nhân sự'},
+      {username:'todoi', password:'todoi123', role:'editor', module:'nhansu_td', fullName:'Quản lý tổ đội'}
     ]);
   }
   if(!localStorage.getItem(LS.finance)){
@@ -462,6 +481,24 @@ function seed(){
       {id:5, team:'Tổ 3 - Anh Sơn', task:'Ốp lát', date:'2026-09-08', floor:'Trệt', workers:3, progress:35, note:'Chờ gạch về thêm'},
       {id:6, team:'Tổ điện nước', task:'LTCK', date:'2026-09-09', floor:'Tầng 1', workers:2, progress:60, note:'Lắp đặt thiết bị vệ sinh'},
       {id:7, team:'Tổ 2 - Anh Long', task:'Công nhật', date:'2026-09-09', floor:'Sân thượng', workers:5, progress:100, note:'Dọn mặt bằng, chuyển vật tư'}
+    ]);
+  }
+  if(!localStorage.getItem(LS.staffCt)){
+    save(LS.staffCt, [
+      {id:1, name:'Nguyễn Văn Hùng', position:'Chỉ huy trưởng công trình', phone:'0901234567', startDate:'2025-03-01', salary:25000000, status:'dang_lam', note:''},
+      {id:2, name:'Trần Thị Mai', position:'Kế toán công trình', phone:'0912345678', startDate:'2025-04-15', salary:15000000, status:'dang_lam', note:''},
+      {id:3, name:'Lê Quốc Bảo', position:'Kỹ sư giám sát', phone:'0923456789', startDate:'2025-05-01', salary:18000000, status:'dang_lam', note:''},
+      {id:4, name:'Phạm Thu Hà', position:'Thủ kho', phone:'0934567890', startDate:'2025-06-10', salary:10000000, status:'dang_lam', note:''}
+    ]);
+  }
+  if(!localStorage.getItem(LS.staffTd)){
+    save(LS.staffTd, [
+      {id:1, name:'Đỗ Văn Bình', team:'Tổ 1 - Anh Bình', role:'Tổ trưởng', phone:'0945678901', startDate:'2025-07-01', wage:400000, status:'dang_lam', note:''},
+      {id:2, name:'Vũ Minh Long', team:'Tổ 2 - Anh Long', role:'Tổ trưởng', phone:'0956789012', startDate:'2025-07-01', wage:400000, status:'dang_lam', note:''},
+      {id:3, name:'Ngô Văn Sơn', team:'Tổ 3 - Anh Sơn', role:'Tổ trưởng', phone:'0967890123', startDate:'2025-07-15', wage:400000, status:'dang_lam', note:''},
+      {id:4, name:'Hoàng Văn Tài', team:'Tổ 1 - Anh Bình', role:'Thợ chính', phone:'0978901234', startDate:'2025-07-05', wage:350000, status:'dang_lam', note:''},
+      {id:5, name:'Bùi Văn Đức', team:'Tổ 1 - Anh Bình', role:'Thợ phụ', phone:'0989012345', startDate:'2025-08-01', wage:250000, status:'dang_lam', note:''},
+      {id:6, name:'Trịnh Văn Nam', team:'Tổ điện nước', role:'Thợ chính', phone:'0990123456', startDate:'2025-07-20', wage:380000, status:'nghi_viec', note:'Nghỉ việc từ 05/09'}
     ]);
   }
 }
@@ -564,8 +601,13 @@ const MODULES = {
   kho:{ label:'Quản lý kho vật tư', short:'Kho vật tư', color:'#a855f7', soft:'rgba(168,85,247,.15)',
     icon:'<path d="M3 8l9-5 9 5-9 5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>' },
   thi_cong:{ label:'Quản lý thi công', short:'Thi công', color:'#f59e0b', soft:'rgba(245,158,11,.15)',
-    icon:'<path d="M4 21V10l7-4v15"/><path d="M11 8l9 3v10"/><path d="M4 21h16"/><path d="M8 13h.01"/><path d="M8 17h.01"/>' }
+    icon:'<path d="M4 21V10l7-4v15"/><path d="M11 8l9 3v10"/><path d="M4 21h16"/><path d="M8 13h.01"/><path d="M8 17h.01"/>' },
+  nhansu_ct:{ label:'Quản lý nhân sự (Công ty)', short:'NS Công ty', color:'#14b8a6', soft:'rgba(20,184,166,.15)',
+    icon:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c.5-2 2-3 3-3s2.5 1 3 3"/><path d="M14 8h4"/><path d="M14 12h4"/>' },
+  nhansu_td:{ label:'Quản lý nhân sự (Tổ đội)', short:'NS Tổ đội', color:'#f43f5e', soft:'rgba(244,63,94,.15)',
+    icon:'<circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/><path d="M22 21v-1.5a4 4 0 0 0-3-3.87"/>' }
 };
+const STAFF_STATUS_LABEL = { dang_lam:'Đang làm việc', nghi_viec:'Đã nghỉ' };
 const TASK_OPTIONS = ['Xây','Trát','Láng nền','Ốp lát','LTCK','Công nhật'];
 const HOME_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
 const ADMIN_ICON = '<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>';
@@ -586,8 +628,8 @@ const state = {
   view:'home',
   err:{},
   confirmId:null,
-  edit:{ tai_chinh:null, kho:null, thi_cong:null },
-  formOpen:{ tai_chinh:false, kho:false, thi_cong:false },
+  edit:{ tai_chinh:null, kho:null, thi_cong:null, nhansu_ct:null, nhansu_td:null },
+  formOpen:{ tai_chinh:false, kho:false, thi_cong:false, nhansu_ct:false, nhansu_td:false },
   search:'',
   notifOpen:false,
   charts:{ kpis:[] },
@@ -622,7 +664,9 @@ const NAV_ITEMS = [
   {key:'home', label:'Trang chủ', icon:HOME_ICON},
   {key:'tai_chinh', label:'Quản lý tài chính', icon:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'},
   {key:'kho', label:'Quản lý kho', icon:MODULES.kho.icon},
-  {key:'thi_cong', label:'Quản lý thi công', icon:MODULES.thi_cong.icon}
+  {key:'thi_cong', label:'Quản lý thi công', icon:MODULES.thi_cong.icon},
+  {key:'nhansu_ct', label:'Nhân sự (Công ty)', icon:MODULES.nhansu_ct.icon},
+  {key:'nhansu_td', label:'Nhân sự (Tổ đội)', icon:MODULES.nhansu_td.icon}
 ];
 
 function renderSyncStatus(){
@@ -673,7 +717,7 @@ function renderChrome(){
   renderSyncStatus();
 
   const searchInput = document.getElementById('searchInput');
-  const searchable = ['tai_chinh','kho','thi_cong'].includes(state.view);
+  const searchable = ['tai_chinh','kho','thi_cong','nhansu_ct','nhansu_td'].includes(state.view);
   searchInput.disabled = !searchable;
   searchInput.placeholder = searchable ? 'Tìm trong danh sách...' : 'Chọn một mục để tìm kiếm';
   searchInput.value = state.search || '';
@@ -684,7 +728,9 @@ function renderTopbarAction(){
   const cfg = {
     tai_chinh:{label:'+ Thêm giao dịch'},
     kho:{label:'+ Thêm vật tư'},
-    thi_cong:{label:'+ Thêm bản ghi'}
+    thi_cong:{label:'+ Thêm bản ghi'},
+    nhansu_ct:{label:'+ Thêm nhân sự'},
+    nhansu_td:{label:'+ Thêm công nhân'}
   };
   if(cfg[state.view] && canAccess(state.view)){
     wrap.innerHTML = `<button class="btn btn-accent" onclick="toggleForm('${state.view}')">${state.formOpen[state.view]?'Đóng biểu mẫu':cfg[state.view].label}</button>`;
@@ -717,6 +763,8 @@ function onSearchInput(e){
   if(state.view==='tai_chinh') renderFinance();
   else if(state.view==='kho') renderKho();
   else if(state.view==='thi_cong') renderThiCong();
+  else if(state.view==='nhansu_ct') renderNhanSuCT();
+  else if(state.view==='nhansu_td') renderNhanSuTD();
 }
 function applySearch(rows, fields){
   const q = (state.search||'').trim().toLowerCase();
@@ -833,6 +881,8 @@ function renderHome(){
         <div class="hint-chip">ketoan / ketoan123 — Tài chính</div>
         <div class="hint-chip">thukho / thukho123 — Kho vật tư</div>
         <div class="hint-chip">kythuat / kythuat123 — Thi công</div>
+        <div class="hint-chip">hanhchinh / hanhchinh123 — NS Công ty</div>
+        <div class="hint-chip">todoi / todoi123 — NS Tổ đội</div>
       </div>
     </div>`}
   `;
@@ -845,7 +895,9 @@ function moduleDesc(key){
   return {
     tai_chinh:'Theo dõi khoản thu từ chủ đầu tư và các khoản chi vật tư, nhân công, máy móc.',
     kho:'Danh mục vật tư, đơn vị tính, số lượng tồn kho và đơn giá hiện tại.',
-    thi_cong:'Nhật ký công việc theo tổ đội, loại việc và tầng thi công.'
+    thi_cong:'Nhật ký công việc theo tổ đội, loại việc và tầng thi công.',
+    nhansu_ct:'Thông tin nhân sự khối văn phòng, kỹ thuật, quản lý công trình.',
+    nhansu_td:'Quân số các tổ đội thi công, vai trò và đơn giá công.'
   }[key];
 }
 
@@ -1412,6 +1464,293 @@ function renderThiCong(){
   ]);
 }
 
+/* ---------- NHÂN SỰ CÔNG TY ---------- */
+function staffCtCreateOrUpdate(e){
+  e.preventDefault();
+  const f = e.target;
+  const rows = load(LS.staffCt, []);
+  const payload = {
+    name:f.name.value.trim(), position:f.position.value.trim(), phone:f.phone.value.trim(),
+    startDate:f.startDate.value, salary:Number(f.salary.value)||0, status:f.status.value, note:f.note.value.trim()
+  };
+  if(state.edit.nhansu_ct){
+    payload.id = state.edit.nhansu_ct;
+    const idx = rows.findIndex(r=>r.id===state.edit.nhansu_ct);
+    rows[idx] = {...rows[idx], ...payload};
+  } else {
+    payload.id = uid(rows);
+    rows.push(payload);
+  }
+  save(LS.staffCt, rows);
+  syncWrite('saveStaffCt', {data: payload});
+  state.edit.nhansu_ct=null; state.formOpen.nhansu_ct=false; render();
+}
+function staffCtEdit(id){ state.edit.nhansu_ct=id; state.formOpen.nhansu_ct=true; render(); }
+function staffCtDelete(id){
+  save(LS.staffCt, load(LS.staffCt,[]).filter(r=>r.id!==id));
+  syncWrite('deleteStaffCt', {id});
+  state.confirmId=null; render();
+}
+function staffCtChart(rows){
+  const el = document.getElementById('staffCtChart');
+  if(!el) return;
+  if(state.charts.staffCt) state.charts.staffCt.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const byPos = {};
+  rows.forEach(r=>{ byPos[r.position||'Khác'] = (byPos[r.position||'Khác']||0)+1; });
+  const labels = Object.keys(byPos);
+  state.charts.staffCt = new Chart(el, {
+    type:'bar',
+    data:{ labels, datasets:[{ data: labels.map(l=>byPos[l]), backgroundColor: MODULES.nhansu_ct.color, borderRadius:6, maxBarThickness:26 }] },
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>c.parsed.x+' người'}}},
+      scales:{ x:{ticks:{color:ink, stepSize:1}, grid:{color:'rgba(255,255,255,.08)'}}, y:{ticks:{color:ink}, grid:{display:false}} }
+    }
+  });
+}
+function renderNhanSuCT(){
+  const allRows = load(LS.staffCt, []).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const rows = applySearch(allRows, ['name','position','phone','note']);
+  const activeCount = allRows.filter(r=>r.status==='dang_lam').length;
+  const totalSalary = allRows.filter(r=>r.status==='dang_lam').reduce((a,r)=>a+r.salary,0);
+  const editing = state.edit.nhansu_ct ? allRows.find(r=>r.id===state.edit.nhansu_ct) : null;
+
+  const recent = activityCard('Nhân sự gần đây', allRows.slice().sort((a,b)=>b.id-a.id).slice(0,4).map(r=>({
+    icon: MODULES.nhansu_ct.icon, soft:MODULES.nhansu_ct.soft, color:MODULES.nhansu_ct.color,
+    title:r.name, meta:r.position||'—', right: r.status==='dang_lam'?'Đang làm':'Đã nghỉ'
+  })));
+
+  document.getElementById('page').innerHTML = `
+    <div class="section-head">
+      <div>
+        <span class="eyebrow" style="color:${MODULES.nhansu_ct.color};">Quản lý nhân sự (Công ty)</span>
+        <h1>Danh sách nhân sự công ty</h1>
+        <p>Quản lý thông tin nhân sự khối văn phòng, kỹ thuật, quản lý công trình.</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid cols-3">
+      ${kpiCard('spark-sc0','kpi-blue','Tổng nhân sự', String(allRows.length))}
+      ${kpiCard('spark-sc1','kpi-green','Đang làm việc', String(activeCount), allRows.length+' tổng')}
+      ${kpiCard('spark-sc2','kpi-purple','Quỹ lương / tháng', vnd(totalSalary), activeCount+' người')}
+    </div>
+
+    ${state.formOpen.nhansu_ct ? `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>${editing?'Sửa nhân sự':'Thêm nhân sự mới'}</h3></div>
+      <div class="card-body">
+        <form onsubmit="staffCtCreateOrUpdate(event)">
+          <div class="formrow2">
+            <div class="field"><label>Họ tên</label><input name="name" required value="${editing?esc(editing.name):''}"></div>
+            <div class="field"><label>Chức vụ</label><input name="position" required placeholder="VD: Kỹ sư giám sát" value="${editing?esc(editing.position):''}"></div>
+          </div>
+          <div class="formrow2">
+            <div class="field"><label>Số điện thoại</label><input name="phone" value="${editing?esc(editing.phone):''}"></div>
+            <div class="field"><label>Ngày vào làm</label><input type="date" name="startDate" value="${editing?editing.startDate:new Date().toISOString().slice(0,10)}"></div>
+          </div>
+          <div class="formrow2">
+            <div class="field"><label>Lương (đ/tháng)</label><input type="number" name="salary" min="0" step="100000" value="${editing?editing.salary:''}"></div>
+            <div class="field"><label>Trạng thái</label>
+              <select name="status">
+                ${Object.entries(STAFF_STATUS_LABEL).map(([k,l])=>`<option value="${k}" ${editing&&editing.status===k?'selected':''}>${l}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>Ghi chú</label><input name="note" value="${editing?esc(editing.note):''}"></div>
+          <div style="display:flex; gap:10px; margin-top:13px;">
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu nhân sự'}</button>
+          </div>
+        </form>
+      </div>
+    </div>` : ''}
+
+    <div class="grid2">
+      <div class="card chartbox">
+        <h3 style="margin-bottom:12px;">Nhân sự theo chức vụ</h3>
+        <div class="chart-canvas-wrap"><canvas id="staffCtChart"></canvas></div>
+      </div>
+      ${recent}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Danh sách nhân sự</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>SĐT</th><th>Ngày vào làm</th><th class="num">Lương</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có nhân sự nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          rows.map(r=>`
+            <tr>
+              <td><b>${esc(r.name)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}</td>
+              <td>${esc(r.position)||'—'}</td>
+              <td>${esc(r.phone)||'—'}</td>
+              <td class="num" style="white-space:nowrap;">${vdate(r.startDate)}</td>
+              <td class="num">${vnd(r.salary)}</td>
+              <td><span class="chip ${r.status==='dang_lam'?'chip-thu':'chip-neutral'}">${STAFF_STATUS_LABEL[r.status]}</span></td>
+              <td><div class="row-actions">
+                <button class="link-btn" onclick="staffCtEdit(${r.id})">Sửa</button>
+                ${confirmDelete(r.id,'staffCtDelete')}
+              </div></td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+  staffCtChart(allRows);
+  mountSparklines([
+    {id:'spark-sc0', data:allRows.map((_,i)=>i+1)},
+    {id:'spark-sc1', data:allRows.map(r=>r.status==='dang_lam'?1:0)},
+    {id:'spark-sc2', data:allRows.map(r=>r.salary)}
+  ]);
+}
+
+/* ---------- NHÂN SỰ TỔ ĐỘI ---------- */
+const TEAM_ROLE_OPTIONS = ['Tổ trưởng','Thợ chính','Thợ phụ'];
+function staffTdCreateOrUpdate(e){
+  e.preventDefault();
+  const f = e.target;
+  const rows = load(LS.staffTd, []);
+  const payload = {
+    name:f.name.value.trim(), team:f.team.value.trim(), role:f.role.value, phone:f.phone.value.trim(),
+    startDate:f.startDate.value, wage:Number(f.wage.value)||0, status:f.status.value, note:f.note.value.trim()
+  };
+  if(state.edit.nhansu_td){
+    payload.id = state.edit.nhansu_td;
+    const idx = rows.findIndex(r=>r.id===state.edit.nhansu_td);
+    rows[idx] = {...rows[idx], ...payload};
+  } else {
+    payload.id = uid(rows);
+    rows.push(payload);
+  }
+  save(LS.staffTd, rows);
+  syncWrite('saveStaffTd', {data: payload});
+  state.edit.nhansu_td=null; state.formOpen.nhansu_td=false; render();
+}
+function staffTdEdit(id){ state.edit.nhansu_td=id; state.formOpen.nhansu_td=true; render(); }
+function staffTdDelete(id){
+  save(LS.staffTd, load(LS.staffTd,[]).filter(r=>r.id!==id));
+  syncWrite('deleteStaffTd', {id});
+  state.confirmId=null; render();
+}
+function staffTdChart(rows){
+  const el = document.getElementById('staffTdChart');
+  if(!el) return;
+  if(state.charts.staffTd) state.charts.staffTd.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const byTeam = {};
+  rows.forEach(r=>{ byTeam[r.team||'Khác'] = (byTeam[r.team||'Khác']||0)+1; });
+  const labels = Object.keys(byTeam);
+  state.charts.staffTd = new Chart(el, {
+    type:'bar',
+    data:{ labels, datasets:[{ data: labels.map(l=>byTeam[l]), backgroundColor: MODULES.nhansu_td.color, borderRadius:6, maxBarThickness:26 }] },
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>c.parsed.x+' người'}}},
+      scales:{ x:{ticks:{color:ink, stepSize:1}, grid:{color:'rgba(255,255,255,.08)'}}, y:{ticks:{color:ink}, grid:{display:false}} }
+    }
+  });
+}
+function renderNhanSuTD(){
+  const allRows = load(LS.staffTd, []).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const rows = applySearch(allRows, ['name','team','role','phone','note']);
+  const activeCount = allRows.filter(r=>r.status==='dang_lam').length;
+  const teamCount = new Set(allRows.map(r=>r.team)).size;
+  const editing = state.edit.nhansu_td ? allRows.find(r=>r.id===state.edit.nhansu_td) : null;
+
+  const recent = activityCard('Công nhân gần đây', allRows.slice().sort((a,b)=>b.id-a.id).slice(0,4).map(r=>({
+    icon: MODULES.nhansu_td.icon, soft:MODULES.nhansu_td.soft, color:MODULES.nhansu_td.color,
+    title:r.name, meta:r.team+' · '+r.role, right: r.status==='dang_lam'?'Đang làm':'Đã nghỉ'
+  })));
+
+  document.getElementById('page').innerHTML = `
+    <div class="section-head">
+      <div>
+        <span class="eyebrow" style="color:${MODULES.nhansu_td.color};">Quản lý nhân sự (Tổ đội)</span>
+        <h1>Danh sách công nhân theo tổ đội</h1>
+        <p>Quản lý quân số các tổ đội thi công, vai trò và đơn giá công.</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid cols-3">
+      ${kpiCard('spark-st0','kpi-blue','Tổng công nhân', String(allRows.length))}
+      ${kpiCard('spark-st1','kpi-purple','Số tổ đội', String(teamCount), allRows.length+' người')}
+      ${kpiCard('spark-st2','kpi-green','Đang làm việc', String(activeCount), allRows.length+' tổng')}
+    </div>
+
+    ${state.formOpen.nhansu_td ? `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>${editing?'Sửa công nhân':'Thêm công nhân mới'}</h3></div>
+      <div class="card-body">
+        <form onsubmit="staffTdCreateOrUpdate(event)">
+          <div class="formrow2">
+            <div class="field"><label>Họ tên</label><input name="name" required value="${editing?esc(editing.name):''}"></div>
+            <div class="field"><label>Tổ đội</label><input name="team" required placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}"></div>
+          </div>
+          <div class="formrow2">
+            <div class="field"><label>Vai trò</label>
+              <select name="role">
+                ${TEAM_ROLE_OPTIONS.map(r=>`<option value="${r}" ${editing&&editing.role===r?'selected':''}>${r}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field"><label>Số điện thoại</label><input name="phone" value="${editing?esc(editing.phone):''}"></div>
+          </div>
+          <div class="formrow2">
+            <div class="field"><label>Ngày vào tổ</label><input type="date" name="startDate" value="${editing?editing.startDate:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Đơn giá công (đ/ngày)</label><input type="number" name="wage" min="0" step="10000" value="${editing?editing.wage:''}"></div>
+          </div>
+          <div class="field"><label>Trạng thái</label>
+            <select name="status">
+              ${Object.entries(STAFF_STATUS_LABEL).map(([k,l])=>`<option value="${k}" ${editing&&editing.status===k?'selected':''}>${l}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Ghi chú</label><input name="note" value="${editing?esc(editing.note):''}"></div>
+          <div style="display:flex; gap:10px; margin-top:13px;">
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu công nhân'}</button>
+          </div>
+        </form>
+      </div>
+    </div>` : ''}
+
+    <div class="grid2">
+      <div class="card chartbox">
+        <h3 style="margin-bottom:12px;">Công nhân theo tổ đội</h3>
+        <div class="chart-canvas-wrap"><canvas id="staffTdChart"></canvas></div>
+      </div>
+      ${recent}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Danh sách công nhân</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Họ tên</th><th>Tổ đội</th><th>Vai trò</th><th>SĐT</th><th>Ngày vào tổ</th><th class="num">Đơn giá công</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có công nhân nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          rows.map(r=>`
+            <tr>
+              <td><b>${esc(r.name)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}</td>
+              <td>${esc(r.team)}</td>
+              <td>${esc(r.role)}</td>
+              <td>${esc(r.phone)||'—'}</td>
+              <td class="num" style="white-space:nowrap;">${vdate(r.startDate)}</td>
+              <td class="num">${vnd(r.wage)}</td>
+              <td><span class="chip ${r.status==='dang_lam'?'chip-thu':'chip-neutral'}">${STAFF_STATUS_LABEL[r.status]}</span></td>
+              <td><div class="row-actions">
+                <button class="link-btn" onclick="staffTdEdit(${r.id})">Sửa</button>
+                ${confirmDelete(r.id,'staffTdDelete')}
+              </div></td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+  staffTdChart(allRows);
+  mountSparklines([
+    {id:'spark-st0', data:allRows.map((_,i)=>i+1)},
+    {id:'spark-st1', data:allRows.map(r=>r.wage)},
+    {id:'spark-st2', data:allRows.map(r=>r.status==='dang_lam'?1:0)}
+  ]);
+}
+
 /* ---------- ADMIN: quản trị tài khoản ---------- */
 function adminCreateUser(e){
   e.preventDefault();
@@ -1493,11 +1832,13 @@ function render(){
     if(!s || s.role!=='admin'){ state.view='home'; return renderHome(); }
     return renderAdmin();
   }
-  if(['tai_chinh','kho','thi_cong'].includes(state.view)){
+  if(['tai_chinh','kho','thi_cong','nhansu_ct','nhansu_td'].includes(state.view)){
     if(!canAccess(state.view)) return renderGate(state.view);
     if(state.view==='tai_chinh') return renderFinance();
     if(state.view==='kho') return renderKho();
     if(state.view==='thi_cong') return renderThiCong();
+    if(state.view==='nhansu_ct') return renderNhanSuCT();
+    if(state.view==='nhansu_td') return renderNhanSuTD();
   }
 }
 render();
