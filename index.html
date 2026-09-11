@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MIK Cổ Loa">
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Tuấn Tú Group</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -29,6 +30,11 @@
     --accent-ink:#ffffff;
     --shadow:0 1px 2px rgba(0,0,0,.35),0 12px 28px -14px rgba(0,0,0,.6);
     --radius:14px;
+    --accent-2:#06b6d4;
+    --accent-2-soft:rgba(6,182,212,.15);
+    --glow-cyan:0 10px 30px -5px rgba(6,182,212,.18);
+    --glass-bg:rgba(12,21,43,.92);
+    --glass-blur:blur(14px);
   }
   *{box-sizing:border-box;}
   body{
@@ -39,6 +45,7 @@
     line-height:1.5;
   }
   .num{font-family:'IBM Plex Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;}
+  .label-mono{font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.18em; font-weight:700; font-size:11.5px; color:var(--accent-2); text-shadow:0 2px 6px rgba(6,182,212,.25);}
   h1,h2,h3{text-wrap:balance; margin:0; font-weight:700;}
   a{color:inherit;}
   button{font-family:inherit; cursor:pointer; color:inherit;}
@@ -47,7 +54,7 @@
   /* ---------- shell ---------- */
   .app-shell{display:flex; min-height:100vh;}
   .sidebar{
-    width:258px; flex:none; background:var(--sidebar-bg); border-right:1px solid var(--line);
+    width:258px; flex:none; background:var(--sidebar-bg); border-right:1px solid rgba(6,182,212,.12);
     display:flex; flex-direction:column; padding:18px 12px; position:sticky; top:0; height:100vh; overflow-y:auto;
   }
   .main{flex:1; min-width:0; display:flex; flex-direction:column;}
@@ -64,11 +71,11 @@
   .navitem svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; flex:none;}
   .navitem span{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .navitem:hover{background:var(--surface-2); color:var(--ink); transform:translateX(3px);}
-  .navitem.active{background:var(--surface-3); color:#fff;}
+  .navitem.active{background:var(--surface-3); color:#fff; box-shadow:0 0 0 1px rgba(6,182,212,.25) inset; border-left:2px solid var(--accent-2); padding-left:9px;}
   .navitem .lock{width:12px; height:12px; opacity:.55; flex:none;}
   .sidebar-spacer{flex:1;}
 
-  .sync-status{display:flex; align-items:center; gap:7px; padding:8px 7px 8px 11px; margin-top:6px; font-size:11.5px; color:var(--muted);}
+  .sync-status{display:flex; align-items:center; gap:7px; padding:8px 7px 8px 11px; margin-top:6px; font-size:11.5px; color:var(--muted); background:rgba(255,255,255,.04); border:1px solid rgba(6,182,212,.2); backdrop-filter:blur(6px); border-radius:999px;}
   .sync-label{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .sync-dot{width:7px; height:7px; border-radius:50%; flex:none; background:var(--muted-2);}
   .sync-refresh{background:none; border:none; color:var(--muted); padding:5px; border-radius:7px; display:flex; flex:none; transition:transform .5s ease, background-color .16s ease, color .16s ease;}
@@ -92,7 +99,7 @@
   .sidebar-user button:hover{background:var(--surface-2); color:var(--ink); transform:scale(1.1);}
 
   /* ---------- topbar ---------- */
-  .topbar{position:sticky; top:0; z-index:15; background:rgba(10,14,22,.82); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); padding:14px 26px; display:flex; align-items:center; gap:16px;}
+  .topbar{position:sticky; top:0; z-index:15; background:var(--glass-bg); backdrop-filter:var(--glass-blur); border-bottom:1px solid rgba(6,182,212,.15); box-shadow:var(--glow-cyan); padding:14px 26px; display:flex; align-items:center; gap:16px;}
   .search-box{display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 13px; width:100%; max-width:320px; color:var(--muted);}
   .search-box:has(input:disabled){opacity:.5;}
   .search-box svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; flex:none;}
@@ -113,8 +120,9 @@
   .btn{border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:9px 15px; border-radius:9px; font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; transition:transform .14s ease, border-color .14s ease, filter .14s ease;}
   .btn:hover{border-color:var(--accent); transform:translateY(-1px);}
   .btn:active{transform:translateY(0);}
-  .btn-accent{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); box-shadow:0 6px 16px -6px rgba(59,130,246,.6);}
-  .btn-accent:hover{filter:brightness(1.08);}
+  .btn-accent{border-radius:999px; background:linear-gradient(180deg,#1a3875,#0d1632); border:1px solid rgba(6,182,212,.5); color:var(--accent-ink); box-shadow:0 6px 18px rgba(6,182,212,.35), inset 0 1.5px 1.5px rgba(255,255,255,.2), 0 -1px 0 1px rgba(6,182,212,.25); font-weight:800; text-transform:uppercase; letter-spacing:.03em; transition:transform .2s ease, box-shadow .2s ease;}
+  .btn-accent:hover{transform:translateY(-1px); box-shadow:0 9px 22px rgba(6,182,212,.5), inset 0 1.5px 1.5px rgba(255,255,255,.25), 0 -1px 0 1px rgba(6,182,212,.35);}
+  .btn-accent:active{transform:scale(.97);}
 
   .page{max-width:1280px; padding:26px 26px 64px;}
   @keyframes pageEnter{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
@@ -154,27 +162,28 @@
   .kpi-grid.cols-3{grid-template-columns:repeat(3,1fr);}
   @media (max-width:1080px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
   @media (max-width:560px){ .kpi-grid{grid-template-columns:1fr;} }
-  .kpi-card{position:relative; overflow:hidden; border-radius:16px; padding:18px 20px 56px; min-height:120px; color:#fff; display:flex; flex-direction:column; gap:8px; transition:transform .16s ease, box-shadow .16s ease;}
-  .kpi-card:hover{transform:translateY(-3px); box-shadow:0 14px 30px -14px rgba(0,0,0,.55);}
+  .kpi-card{position:relative; overflow:hidden; border-radius:16px; padding:18px 20px 56px; min-height:120px; color:#fff; display:flex; flex-direction:column; gap:8px; border:1px solid rgba(255,255,255,.08); transition:transform .16s ease, box-shadow .16s ease;}
+  .kpi-card:hover{transform:translateY(-3px); box-shadow:0 16px 34px -12px var(--kpi-glow, rgba(0,0,0,.55));}
   .kpi-card::before{content:'';position:absolute; inset:0; background:radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,.18), transparent 60%); pointer-events:none;}
   .kpi-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; position:relative; z-index:1;}
   .kpi-label{font-size:12.5px; font-weight:700; opacity:.92;}
   .kpi-trend{font-size:10.5px; font-weight:800; background:rgba(255,255,255,.2); padding:3px 8px; border-radius:99px; white-space:nowrap; position:relative; z-index:1;}
   .kpi-value{font-size:24px; font-weight:800; position:relative; z-index:1;}
   .kpi-spark{position:absolute; left:0; right:0; bottom:0; height:52px; width:100%;}
-  .kpi-blue{background:linear-gradient(135deg,#2f6fed 0%,#15316b 100%);}
-  .kpi-orange{background:linear-gradient(135deg,#f9812f 0%,#7c2d12 100%);}
-  .kpi-purple{background:linear-gradient(135deg,#a855f7 0%,#581c87 100%);}
-  .kpi-green{background:linear-gradient(135deg,#13ba86 0%,#065f46 100%);}
+  .kpi-blue{background:linear-gradient(135deg,#2f6fed 0%,#15316b 100%); --kpi-glow:rgba(47,111,237,.45);}
+  .kpi-orange{background:linear-gradient(135deg,#f9812f 0%,#7c2d12 100%); --kpi-glow:rgba(249,129,47,.45);}
+  .kpi-purple{background:linear-gradient(135deg,#a855f7 0%,#581c87 100%); --kpi-glow:rgba(168,85,247,.45);}
+  .kpi-green{background:linear-gradient(135deg,#13ba86 0%,#065f46 100%); --kpi-glow:rgba(19,186,134,.45);}
 
   /* ---------- home hero ---------- */
   .home-hero{position:relative; border-radius:18px; overflow:hidden; margin-bottom:20px; height:230px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; text-align:center; background:#0c1424; border:1px solid var(--line); box-shadow:var(--shadow);}
   .home-hero-bg{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 40%; pointer-events:none;}
-  .home-hero-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,10,18,.25) 0%, rgba(6,10,18,.45) 45%, rgba(6,10,18,.9) 100%), linear-gradient(90deg, rgba(6,10,18,.82) 0%, rgba(6,10,18,.3) 60%, rgba(6,10,18,.12) 100%);}
+  .home-hero-overlay{position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,10,18,.25) 0%, rgba(6,10,18,.45) 45%, rgba(6,10,18,.92) 100%), linear-gradient(90deg, rgba(6,10,18,.82) 0%, rgba(6,10,18,.3) 60%, rgba(6,10,18,.12) 100%);}
+  .home-hero-tag{margin-bottom:8px;}
   .home-hero-inner{position:relative; z-index:2; padding:0 32px 32px; width:100%; max-width:640px;}
   .home-hero-eyebrow{position:absolute; top:20px; left:28px; z-index:2; font-size:12px; color:var(--muted); opacity:.55; text-align:left;}
   .home-hero-eyebrow b{color:var(--ink); font-weight:700;}
-  .home-counter{display:inline-flex; align-items:center; gap:14px; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:14px; padding:13px 18px; backdrop-filter:blur(6px);}
+  .home-counter{display:inline-flex; align-items:center; gap:14px; background:rgba(255,255,255,.05); border:1px solid rgba(6,182,212,.25); border-radius:14px; padding:13px 18px; backdrop-filter:blur(8px); box-shadow:var(--glow-cyan);}
   .home-counter-dot{width:8px; height:8px; border-radius:50%; background:#f59e0b; flex:none; box-shadow:0 0 0 4px rgba(245,158,11,.16); animation:syncPulse 1.8s ease-in-out infinite;}
   .home-counter-num{font-size:23px; font-weight:800; color:#f59e0b; letter-spacing:.2px;}
   .home-counter-sub{font-size:11.5px; color:var(--muted); margin-top:2px;}
@@ -187,11 +196,11 @@
 
   .tile-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
   @media (max-width:860px){ .tile-grid{grid-template-columns:1fr;} }
-  .tile{position:relative; background:linear-gradient(165deg, var(--surface-2), var(--surface)); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:22px 20px 20px; display:flex; flex-direction:column; gap:12px; text-align:left; width:100%; overflow:hidden; transition:transform .12s ease;}
+  .tile{position:relative; background:linear-gradient(165deg, var(--surface-2), var(--surface)); border:1px solid rgba(255,255,255,.08); border-radius:16px; box-shadow:var(--shadow); padding:22px 20px 20px; display:flex; flex-direction:column; gap:12px; text-align:left; width:100%; overflow:hidden; transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;}
   .tile::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--tile-c,var(--accent));}
-  .tile:hover{transform:translateY(-2px); border-color:var(--muted-2);}
+  .tile:hover{transform:translateY(-2px); border-color:var(--muted-2); box-shadow:var(--shadow), 0 16px 36px -14px color-mix(in srgb, var(--tile-c,var(--accent)) 55%, transparent);}
   .tile-top{display:flex; align-items:center; gap:12px; justify-content:space-between;}
-  .tile-num{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:800; color:var(--tile-c,var(--accent)); opacity:.9;}
+  .tile-num{font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:800; color:var(--tile-c,var(--accent)); opacity:.95; width:30px; height:30px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--tile-c,var(--accent)) 18%, transparent);}
   .tile-icon{width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex:none;}
   .tile-icon svg{width:21px; height:21px; fill:none; stroke-width:1.8;}
   .tile-title{font-size:16px; font-weight:700;}
@@ -361,6 +370,11 @@
     .topbar{padding:12px 16px;}
     .search-box{max-width:170px;}
     .page{padding:22px 16px 56px;}
+  }
+
+  @media (max-width:640px){
+    .topbar, .home-counter, .sync-status{backdrop-filter:none;}
+    .topbar{background:#0e1424;}
   }
 </style>
 
@@ -538,14 +552,16 @@ function normalizeVatTuChinh(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), direction:pick(r,'direction')==='xuat'?'xuat':'nhap',
     material:String(pick(r,'material')||''), unit:String(pick(r,'unit')||''), quantity:Number(pick(r,'quantity'))||0,
-    team:String(pick(r,'team')||''), note:String(pick(r,'note')||'')
+    team:String(pick(r,'team')||''), note:String(pick(r,'note')||''),
+    photos: pick(r,'photos') ? String(pick(r,'photos')).split(',').map(s=>s.trim()).filter(Boolean) : []
   }));
 }
 function normalizeVatTuPhu(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), direction:pick(r,'direction')==='xuat'?'xuat':'nhap',
     itemName:String(pick(r,'itemName')||''), unit:String(pick(r,'unit')||''), quantity:Number(pick(r,'quantity'))||0,
-    price:Number(pick(r,'price'))||0, team:String(pick(r,'team')||''), note:String(pick(r,'note')||'')
+    price:Number(pick(r,'price'))||0, team:String(pick(r,'team')||''), note:String(pick(r,'note')||''),
+    photos: pick(r,'photos') ? String(pick(r,'photos')).split(',').map(s=>s.trim()).filter(Boolean) : []
   }));
 }
 function normalizeConstruction(rows){
@@ -731,8 +747,39 @@ function renderConPhotoGrid(){
   if(input) input.disabled = state.conPhotoDraft.length>=6;
 }
 
-function openLightbox(recordId, idx){
-  const row = load(LS.construction, []).find(r=>r.id===recordId);
+const KHO_PHOTO_MAX = 10;
+const KHO_PHOTO_MAX_BYTES = 5*1024*1024;
+async function onKhoPhotoInput(e){
+  const files = Array.from(e.target.files||[]);
+  const room = Math.max(0, KHO_PHOTO_MAX - state.khoPhotoDraft.length);
+  const oversized = files.filter(f=>f.size>KHO_PHOTO_MAX_BYTES);
+  state.err.kho = oversized.length ? `${oversized.length} ảnh vượt quá 5MB đã bị bỏ qua: ${oversized.map(f=>f.name).join(', ')}` : null;
+  const accepted = files.filter(f=>f.size<=KHO_PHOTO_MAX_BYTES).slice(0, room);
+  for(const file of accepted){
+    const dataUrl = await resizeImageFile(file);
+    state.khoPhotoDraft.push(dataUrl);
+  }
+  e.target.value = '';
+  renderKhoPhotoGrid();
+}
+function removeKhoPhotoDraft(idx){ state.khoPhotoDraft.splice(idx,1); renderKhoPhotoGrid(); }
+function renderKhoPhotoGrid(){
+  const grid = document.getElementById('khoPhotoGrid');
+  if(!grid) return;
+  grid.innerHTML = state.khoPhotoDraft.map((src,i)=>`
+    <div class="photo-thumb">
+      <img src="${src}" alt="Ảnh vật tư">
+      <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
+    </div>`).join('');
+  const input = document.getElementById('khoPhotoInput');
+  if(input) input.disabled = state.khoPhotoDraft.length>=KHO_PHOTO_MAX;
+  const err = document.getElementById('khoPhotoErr');
+  if(err) err.outerHTML = state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>';
+}
+
+const LIGHTBOX_SOURCES = { construction:'construction', vatTuChinh:'vatTuChinh', vatTuPhu:'vatTuPhu' };
+function openLightbox(source, recordId, idx){
+  const row = load(LS[LIGHTBOX_SOURCES[source]||'construction'], []).find(r=>r.id===recordId);
   if(!row || !row.photos || !row.photos[idx]) return;
   state.lightboxSrc = row.photos[idx];
   renderLightbox();
@@ -748,8 +795,39 @@ function renderLightbox(){
 
 function conTabSwitch(tab){ state.thiCongTab=tab; render(); playPageAnim(); }
 function khoTabSwitch(tab){ state.khoTab=tab; state.formOpen.kho=false; state.edit.kho=null; render(); playPageAnim(); }
+
+function khoChinhPeriodChange(period){
+  const r = computePeriodRange(period);
+  state.khoChinhFilters.period = period;
+  state.khoChinhFilters.from = r.from;
+  state.khoChinhFilters.to = r.to;
+  render();
+}
+function khoChinhRangeChange(which, value){ state.khoChinhFilters[which]=value; state.khoChinhFilters.period='custom'; render(); }
+function khoChinhFilterChange(key, value){ state.khoChinhFilters[key]=value; render(); }
+function khoChinhClearFilters(){ state.khoChinhFilters={ period:'', from:'', to:'', material:'', direction:'', team:'' }; render(); }
+function applyKhoChinhFilters(rows){
+  const f = state.khoChinhFilters;
+  return rows.filter(r=>
+    (!f.from || r.date >= f.from) &&
+    (!f.to || r.date <= f.to) &&
+    (!f.material || r.material===f.material) &&
+    (!f.direction || r.direction===f.direction) &&
+    (!f.team || r.team===f.team)
+  );
+}
+
+function khoDashPeriodChange(period){
+  const r = computePeriodRange(period);
+  state.khoDashFilters.period = period;
+  state.khoDashFilters.from = r.from;
+  state.khoDashFilters.to = r.to;
+  render();
+}
+function khoDashRangeChange(which, value){ state.khoDashFilters[which]=value; state.khoDashFilters.period='custom'; render(); }
+function khoDashFilterChange(key, value){ state.khoDashFilters[key]=value; render(); }
 function fmtISO(d){ return d.toISOString().slice(0,10); }
-function conPeriodPreset(period){
+function computePeriodRange(period){
   const today = new Date();
   let from, to;
   if(period==='ngay'){ from=today; to=today; }
@@ -761,9 +839,13 @@ function conPeriodPreset(period){
     from = new Date(today.getFullYear(), today.getMonth(), 1);
     to = new Date(today.getFullYear(), today.getMonth()+1, 0);
   }
+  return { from: fmtISO(from), to: fmtISO(to) };
+}
+function conPeriodPreset(period){
+  const r = computePeriodRange(period);
   state.tqPeriod = period;
-  state.tqFrom = fmtISO(from);
-  state.tqTo = fmtISO(to);
+  state.tqFrom = r.from;
+  state.tqTo = r.to;
 }
 function conTqPeriodChange(period){ conPeriodPreset(period); render(); }
 function conTqRangeChange(which, value){ state[which]=value; state.tqPeriod='custom'; render(); }
@@ -846,6 +928,7 @@ const state = {
   charts:{ kpis:[] },
   conFilters:{ team:'', task:'', date:'', floor:'' },
   conPhotoDraft:[],
+  khoPhotoDraft:[],
   lightboxSrc:null,
   syncStatus:'local',
   editingStartDate:false,
@@ -854,7 +937,9 @@ const state = {
   editingProjectLocation:false,
   editingUserModules:null,
   pwdOk:false,
-  khoTab:'chinh'
+  khoTab:'chinh',
+  khoChinhFilters:{ period:'', from:'', to:'', material:'', direction:'', team:'' },
+  khoDashFilters:{ period:'thang', from:'', to:'', material:'' }
 };
 
 function playPageAnim(){
@@ -874,6 +959,7 @@ function toggleForm(key){
   state.formOpen[key]=!wasOpen;
   state.edit[key]=null;
   if(key==='thi_cong' && !wasOpen){ state.conPhotoDraft=[]; }
+  if(key==='kho' && !wasOpen){ state.khoPhotoDraft=[]; state.err.kho=null; }
   render();
 }
 
@@ -947,7 +1033,7 @@ function renderTopbarAction(){
   const wrap = document.getElementById('topbarAction');
   const cfg = {
     tai_chinh:{label:'+ Thêm giao dịch'},
-    kho:{label: state.khoTab==='phu' ? '+ Thêm giao dịch (vật tư phụ)' : '+ Thêm giao dịch (vật tư chính)'},
+    kho:{label: state.khoTab==='phu' ? '+ Thêm vật tư phụ' : '+ Thêm vật tư chính'},
     thi_cong:{label:'+ Thêm bản ghi'},
     nhansu_ct:{label:'+ Thêm nhân sự'},
     nhansu_td:{label:'+ Thêm công nhân'}
@@ -1151,6 +1237,7 @@ function renderHome(){
       <div class="home-hero-overlay"></div>
       <div class="home-hero-eyebrow">Hệ thống vận hành và phát triển bởi <b>Mai Quốc Khánh</b></div>
       <div class="home-hero-inner">
+        <div class="home-hero-tag label-mono">Hệ Thống Vận Hành Theo Thời Gian Thực</div>
         ${counterHtml}
       </div>
     </div>`;
@@ -1260,7 +1347,7 @@ function renderGate(moduleKey){
           <form class="formgrid" onsubmit="return doLogin(event,'${moduleKey}')">
             <div class="field"><label>Tên đăng nhập</label><input name="username" autocomplete="username" required></div>
             <div class="field"><label>Mật khẩu</label><input name="password" type="password" autocomplete="current-password" required></div>
-            <button class="btn btn-accent" type="submit" style="background:${m.color}; border-color:${m.color}; box-shadow:none;">Đăng nhập</button>
+            <button class="btn btn-accent" type="submit" style="border-color:${m.color};">Đăng nhập</button>
           </form>
           ${deniedMsg ? `<div class="error-msg">${esc(deniedMsg)}</div>` : ''}
         </div>
@@ -1454,7 +1541,8 @@ function renderFinance(){
 /* ---------- KHO VẬT TƯ ---------- */
 const KHO_TABS = [
   {key:'chinh', label:'Vật tư chính'},
-  {key:'phu', label:'Vật tư phụ'}
+  {key:'phu', label:'Vật tư phụ'},
+  {key:'dashboard', label:'Dashboard'}
 ];
 function toggleKhoDirFields(sel){
   const form = sel.closest('form');
@@ -1487,7 +1575,9 @@ function renderKho(){
     </div>
     <div id="khoSub"></div>
   `;
-  if(state.khoTab==='phu') renderKhoPhu(); else renderKhoChinh();
+  if(state.khoTab==='phu') renderKhoPhu();
+  else if(state.khoTab==='dashboard') renderKhoDashboard();
+  else renderKhoChinh();
 }
 
 /* ---- tab: Vật tư chính (danh mục cố định) ---- */
@@ -1504,7 +1594,8 @@ function kvtChinhCreateOrUpdate(e){
     date:f.date.value, direction, material, unit,
     quantity: Math.max(0, Number(f.quantity.value)||0),
     team: direction==='xuat' ? f.team.value.trim() : '',
-    note: f.note.value.trim()
+    note: f.note.value.trim(),
+    photos: state.khoPhotoDraft.slice()
   };
   if(state.edit.kho){
     payload.id = state.edit.kho;
@@ -1514,11 +1605,22 @@ function kvtChinhCreateOrUpdate(e){
     payload.id = uid(rows);
     rows.push(payload);
   }
-  save(LS.vatTuChinh, rows);
-  syncWrite('saveVatTuChinh', {data: payload});
+  const ok = save(LS.vatTuChinh, rows);
+  if(!ok){
+    state.err.kho = 'Không thể lưu — bộ nhớ trình duyệt đã đầy. Hãy xoá bớt ảnh hoặc bản ghi cũ rồi thử lại.';
+    render();
+    return;
+  }
+  state.err.kho = null;
+  syncWithPhotos('saveVatTuChinh', 'vattu_chinh', payload);
   state.edit.kho=null; state.formOpen.kho=false; render();
 }
-function kvtChinhEdit(id){ state.edit.kho=id; state.formOpen.kho=true; render(); }
+function kvtChinhEdit(id){
+  state.edit.kho=id; state.formOpen.kho=true;
+  const row = load(LS.vatTuChinh, []).find(r=>r.id===id);
+  state.khoPhotoDraft = row && row.photos ? row.photos.slice() : [];
+  render();
+}
 function kvtChinhDelete(id){
   save(LS.vatTuChinh, load(LS.vatTuChinh,[]).filter(r=>r.id!==id));
   syncWrite('deleteVatTuChinh', {id});
@@ -1527,7 +1629,12 @@ function kvtChinhDelete(id){
 function renderKhoChinh(){
   const sub = document.getElementById('khoSub');
   const allRows = load(LS.vatTuChinh, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const rows = applySearch(allRows, ['material','team','note']);
+  let rows = applySearch(allRows, ['material','team','note']);
+  rows = applyKhoChinhFilters(rows);
+  const filterMaterials = [...new Set(allRows.map(r=>r.material))].filter(Boolean).sort();
+  const filterTeams = [...new Set(allRows.map(r=>r.team))].filter(Boolean).sort();
+  const kf = state.khoChinhFilters;
+  const hasActiveFilters = !!(kf.period || kf.from || kf.to || kf.material || kf.direction || kf.team);
   const stock = khoStockSummary(allRows, 'material');
   const lowStock = stock.filter(m=>m.ton<10);
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
@@ -1542,7 +1649,7 @@ function renderKhoChinh(){
 
     ${state.formOpen.kho ? `
     <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><h3>${editing?'Sửa giao dịch':'Thêm giao dịch vật tư chính'}</h3></div>
+      <div class="card-head"><h3>${editing?'Sửa vật tư chính':'Thêm vật tư chính'}</h3></div>
       <div class="card-body">
         <form onsubmit="kvtChinhCreateOrUpdate(event)">
           <div class="formrow2">
@@ -1570,8 +1677,21 @@ function renderKhoChinh(){
             <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}">
           </div>
           <div class="field"><label>Ghi chú</label><input name="note" value="${editing?esc(editing.note):''}"></div>
+          <div class="field">
+            <label>Ảnh đính kèm (tối đa 10 ảnh, mỗi ảnh ≤5MB)</label>
+            <input id="khoPhotoInput" type="file" accept="image/*" multiple onchange="onKhoPhotoInput(event)" ${state.khoPhotoDraft.length>=KHO_PHOTO_MAX?'disabled':''}>
+            <div class="photo-hint">Ảnh sẽ được thu nhỏ trước khi lưu.</div>
+            <div class="photo-grid" id="khoPhotoGrid">
+              ${state.khoPhotoDraft.map((src,i)=>`
+                <div class="photo-thumb">
+                  <img src="${src}" alt="Ảnh vật tư">
+                  <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
+                </div>`).join('')}
+            </div>
+            ${state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>'}
+          </div>
           <div style="display:flex; gap:10px; margin-top:13px;">
-            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu giao dịch'}</button>
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu phiếu nhập'}</button>
             <button class="btn" type="button" onclick="toggleForm('kho')">Huỷ</button>
           </div>
         </form>
@@ -1596,7 +1716,30 @@ function renderKhoChinh(){
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Lịch sử giao dịch</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="card-head"><h3>Lịch sử kho</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="filter-bar" style="flex-wrap:wrap; gap:10px;">
+        <div class="period-toggle">
+          <button class="${kf.period==='ngay'?'active':''}" onclick="khoChinhPeriodChange('ngay')">Ngày</button>
+          <button class="${kf.period==='tuan'?'active':''}" onclick="khoChinhPeriodChange('tuan')">Tuần</button>
+          <button class="${kf.period==='thang'?'active':''}" onclick="khoChinhPeriodChange('thang')">Tháng</button>
+        </div>
+        <input type="date" value="${kf.from}" onchange="khoChinhRangeChange('from', this.value)" title="Từ ngày">
+        <input type="date" value="${kf.to}" onchange="khoChinhRangeChange('to', this.value)" title="Đến ngày">
+        <select onchange="khoChinhFilterChange('material', this.value)">
+          <option value="">Tất cả vật tư</option>
+          ${filterMaterials.map(m=>`<option value="${esc(m)}" ${kf.material===m?'selected':''}>${esc(m)}</option>`).join('')}
+        </select>
+        <select onchange="khoChinhFilterChange('direction', this.value)">
+          <option value="">Tất cả loại GD</option>
+          <option value="nhap" ${kf.direction==='nhap'?'selected':''}>Nhập kho</option>
+          <option value="xuat" ${kf.direction==='xuat'?'selected':''}>Xuất kho</option>
+        </select>
+        <select onchange="khoChinhFilterChange('team', this.value)">
+          <option value="">Tất cả nhà thầu/tổ đội</option>
+          ${filterTeams.map(t=>`<option value="${esc(t)}" ${kf.team===t?'selected':''}>${esc(t)}</option>`).join('')}
+        </select>
+        ${hasActiveFilters?`<button class="link-btn" onclick="khoChinhClearFilters()">Xoá lọc</button>`:''}
+      </div>
       <div class="tablewrap"><table>
         <thead><tr><th>Ngày</th><th>Loại GD</th><th>Vật tư</th><th class="num">Số lượng</th><th>Nhà thầu/tổ đội</th><th>Ghi chú</th><th></th></tr></thead>
         <tbody>
@@ -1605,7 +1748,11 @@ function renderKhoChinh(){
             <tr>
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
               <td><span class="chip ${r.direction==='xuat'?'chip-chi':'chip-thu'}">${r.direction==='xuat'?'Xuất':'Nhập'}</span></td>
-              <td>${esc(r.material)}</td>
+              <td>${esc(r.material)}${r.photos && r.photos.length ? `
+                <div class="photo-strip">
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('vatTuChinh',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
+                  ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
+                </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
               <td>${esc(r.team)||'—'}</td>
               <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}</td>
@@ -1638,7 +1785,8 @@ function kvtPhuCreateOrUpdate(e){
     quantity: Math.max(0, Number(f.quantity.value)||0),
     price: direction==='nhap' ? Math.max(0, Number(f.price.value)||0) : 0,
     team: direction==='xuat' ? f.team.value.trim() : '',
-    note: f.note.value.trim()
+    note: f.note.value.trim(),
+    photos: state.khoPhotoDraft.slice()
   };
   if(state.edit.kho){
     payload.id = state.edit.kho;
@@ -1648,11 +1796,22 @@ function kvtPhuCreateOrUpdate(e){
     payload.id = uid(rows);
     rows.push(payload);
   }
-  save(LS.vatTuPhu, rows);
-  syncWrite('saveVatTuPhu', {data: payload});
+  const ok = save(LS.vatTuPhu, rows);
+  if(!ok){
+    state.err.kho = 'Không thể lưu — bộ nhớ trình duyệt đã đầy. Hãy xoá bớt ảnh hoặc bản ghi cũ rồi thử lại.';
+    render();
+    return;
+  }
+  state.err.kho = null;
+  syncWithPhotos('saveVatTuPhu', 'vattu_phu', payload);
   state.edit.kho=null; state.formOpen.kho=false; render();
 }
-function kvtPhuEdit(id){ state.edit.kho=id; state.formOpen.kho=true; render(); }
+function kvtPhuEdit(id){
+  state.edit.kho=id; state.formOpen.kho=true;
+  const row = load(LS.vatTuPhu, []).find(r=>r.id===id);
+  state.khoPhotoDraft = row && row.photos ? row.photos.slice() : [];
+  render();
+}
 function kvtPhuDelete(id){
   save(LS.vatTuPhu, load(LS.vatTuPhu,[]).filter(r=>r.id!==id));
   syncWrite('deleteVatTuPhu', {id});
@@ -1679,7 +1838,7 @@ function renderKhoPhu(){
 
     ${state.formOpen.kho ? `
     <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><h3>${editing?'Sửa giao dịch':'Thêm giao dịch vật tư phụ'}</h3></div>
+      <div class="card-head"><h3>${editing?'Sửa vật tư phụ':'Thêm vật tư phụ'}</h3></div>
       <div class="card-body">
         <form onsubmit="kvtPhuCreateOrUpdate(event)">
           <div class="formrow2">
@@ -1703,8 +1862,21 @@ function renderKhoPhu(){
             <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ điện nước" value="${editing?esc(editing.team):''}">
           </div>
           <div class="field"><label>Ghi chú</label><input name="note" value="${editing?esc(editing.note):''}"></div>
+          <div class="field">
+            <label>Ảnh đính kèm (tối đa 10 ảnh, mỗi ảnh ≤5MB)</label>
+            <input id="khoPhotoInput" type="file" accept="image/*" multiple onchange="onKhoPhotoInput(event)" ${state.khoPhotoDraft.length>=KHO_PHOTO_MAX?'disabled':''}>
+            <div class="photo-hint">Ảnh sẽ được thu nhỏ trước khi lưu.</div>
+            <div class="photo-grid" id="khoPhotoGrid">
+              ${state.khoPhotoDraft.map((src,i)=>`
+                <div class="photo-thumb">
+                  <img src="${src}" alt="Ảnh vật tư">
+                  <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
+                </div>`).join('')}
+            </div>
+            ${state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>'}
+          </div>
           <div style="display:flex; gap:10px; margin-top:13px;">
-            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu giao dịch'}</button>
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu phiếu nhập'}</button>
             <button class="btn" type="button" onclick="toggleForm('kho')">Huỷ</button>
           </div>
         </form>
@@ -1730,7 +1902,7 @@ function renderKhoPhu(){
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Lịch sử giao dịch</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="card-head"><h3>Lịch sử kho</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
         <thead><tr><th>Ngày</th><th>Loại GD</th><th>Tên hàng</th><th class="num">Số lượng</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Nhà thầu/tổ đội</th><th></th></tr></thead>
         <tbody>
@@ -1739,7 +1911,11 @@ function renderKhoPhu(){
             <tr>
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
               <td><span class="chip ${r.direction==='xuat'?'chip-chi':'chip-thu'}">${r.direction==='xuat'?'Xuất':'Nhập'}</span></td>
-              <td><b>${esc(r.itemName)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}</td>
+              <td><b>${esc(r.itemName)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}${r.photos && r.photos.length ? `
+                <div class="photo-strip">
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('vatTuPhu',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
+                  ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
+                </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
               <td class="num">${r.direction==='nhap'&&r.price?vnd(r.price):'—'}</td>
               <td class="num">${r.direction==='nhap'&&r.price?vnd(r.price*r.quantity):'—'}</td>
@@ -1757,6 +1933,132 @@ function renderKhoPhu(){
     {id:'spark-kp0', data: stock.map(m=>m.ton)},
     {id:'spark-kp1', data: stock.map(m=>m.ton*(lastPrice[m.name]||0))},
     {id:'spark-kp2', data: allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map((r,i)=>i+1)}
+  ]);
+}
+
+/* ---- tab: Dashboard (bản demo — vật tư chính, nhập về theo ngày) ---- */
+function khoDashLineChart(rows, materialLabel){
+  const el = document.getElementById('khoDashLineChart');
+  if(!el) return;
+  if(state.charts.khoDashLine) state.charts.khoDashLine.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const nhapByDate = {};
+  rows.filter(r=>r.direction==='nhap').forEach(r=>{ nhapByDate[r.date] = (nhapByDate[r.date]||0) + (r.quantity||0); });
+  const dates = Object.keys(nhapByDate).sort();
+  state.charts.khoDashLine = new Chart(el, {
+    type:'line',
+    data:{
+      labels: dates.map(d=>vdate(d)),
+      datasets:[{
+        label: materialLabel||'Nhập', data: dates.map(d=>nhapByDate[d]),
+        borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.18)', fill:true, tension:.35, pointRadius:3, borderWidth:2
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{color:ink}, grid:{color:'rgba(255,255,255,.06)'}}, y:{beginAtZero:true, ticks:{color:ink, precision:0}, grid:{color:'rgba(255,255,255,.08)'}} }
+    }
+  });
+}
+function khoDashDonutChart(rows){
+  const el = document.getElementById('khoDashDonutChart');
+  if(!el) return;
+  if(state.charts.khoDashDonut) state.charts.khoDashDonut.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const countByMat = {};
+  rows.forEach(r=>{ if(r.material) countByMat[r.material] = (countByMat[r.material]||0)+1; });
+  const labels = Object.keys(countByMat);
+  state.charts.khoDashDonut = new Chart(el, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data: labels.map(l=>countByMat[l]), backgroundColor: labels.map((_,i)=>CHART_PALETTE[i%CHART_PALETTE.length]), borderWidth:0 }] },
+    options:{ plugins:{legend:{display:true, position:'bottom', labels:{color:ink, boxWidth:10, font:{size:10.5}}}} }
+  });
+}
+function khoDashBarChart(rows){
+  const el = document.getElementById('khoDashBarChart');
+  if(!el) return;
+  if(state.charts.khoDashBar) state.charts.khoDashBar.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const byTeam = {};
+  rows.forEach(r=>{ const t = r.team||'(Không rõ)'; byTeam[t] = (byTeam[t]||0) + (r.quantity||0); });
+  const labels = Object.keys(byTeam);
+  state.charts.khoDashBar = new Chart(el, {
+    type:'bar',
+    data:{ labels, datasets:[{ data: labels.map(l=>byTeam[l]), backgroundColor:'#3b82f6', borderRadius:6, maxBarThickness:40 }] },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{color:ink}, grid:{display:false}}, y:{beginAtZero:true, ticks:{color:ink, precision:0}, grid:{color:'rgba(255,255,255,.08)'}} }
+    }
+  });
+}
+function renderKhoDashboard(){
+  const sub = document.getElementById('khoSub');
+  const allRows = load(LS.vatTuChinh, []);
+  if(!state.khoDashFilters.from || !state.khoDashFilters.to){
+    const r = computePeriodRange(state.khoDashFilters.period||'thang');
+    state.khoDashFilters.from = r.from;
+    state.khoDashFilters.to = r.to;
+  }
+  const df = state.khoDashFilters;
+  const rangeRows = allRows.filter(r=> (!df.from || r.date>=df.from) && (!df.to || r.date<=df.to));
+  const materials = [...new Set(allRows.map(r=>r.material))].filter(Boolean).sort();
+  const selectedMaterial = (df.material && materials.includes(df.material)) ? df.material : (materials[0] || '');
+  const matRows = rangeRows.filter(r=>r.material===selectedMaterial);
+
+  const totalNhap = matRows.filter(r=>r.direction==='nhap').reduce((a,r)=>a+(r.quantity||0),0);
+  const totalXuat = matRows.filter(r=>r.direction==='xuat').reduce((a,r)=>a+(r.quantity||0),0);
+  const unit = (matRows[0]||{}).unit || (KHO_MATERIALS.find(m=>m.label===selectedMaterial)||{}).unit || '';
+
+  sub.innerHTML = `
+    <div class="tq-filterbar">
+      <div class="period-toggle">
+        <button class="${df.period==='ngay'?'active':''}" onclick="khoDashPeriodChange('ngay')">Theo ngày</button>
+        <button class="${df.period==='tuan'?'active':''}" onclick="khoDashPeriodChange('tuan')">Theo tuần</button>
+        <button class="${df.period==='thang'?'active':''}" onclick="khoDashPeriodChange('thang')">Theo tháng</button>
+      </div>
+      <div class="tq-range">
+        Từ <input type="date" value="${df.from}" onchange="khoDashRangeChange('from', this.value)">
+        đến <input type="date" value="${df.to}" onchange="khoDashRangeChange('to', this.value)">
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12.5px; color:var(--muted);">Vật tư:</span>
+        <select onchange="khoDashFilterChange('material', this.value)" style="border:1px solid var(--line); background:var(--surface-2); color:var(--ink); padding:7px 10px; border-radius:8px; font-size:12.5px; font-family:inherit;">
+          ${materials.length===0?`<option value="">(chưa có dữ liệu)</option>`:materials.map(m=>`<option value="${esc(m)}" ${selectedMaterial===m?'selected':''}>${esc(m)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      ${kpiCard('spark-kd0','kpi-blue','Tổng nhập trong kỳ', totalNhap.toLocaleString('vi-VN'), unit)}
+      ${kpiCard('spark-kd1','kpi-orange','Tổng xuất trong kỳ', totalXuat.toLocaleString('vi-VN'), unit)}
+      ${kpiCard('spark-kd2','kpi-green','Chênh lệch trong kỳ', (totalNhap-totalXuat).toLocaleString('vi-VN'), unit)}
+      ${kpiCard('spark-kd3','kpi-purple','Số lượt giao dịch', String(matRows.length))}
+    </div>
+
+    <div class="grid2">
+      <div class="card chartbox">
+        <h3 style="margin-bottom:12px;">Nhập về theo ngày — ${selectedMaterial?esc(selectedMaterial):'(chưa có dữ liệu)'}</h3>
+        <div class="chart-canvas-wrap"><canvas id="khoDashLineChart"></canvas></div>
+      </div>
+      <div class="card chartbox">
+        <h3 style="margin-bottom:12px;">Tỷ trọng số lượt giao dịch theo loại vật tư</h3>
+        <div class="chart-canvas-wrap"><canvas id="khoDashDonutChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card chartbox">
+      <h3 style="margin-bottom:12px;">Xuất theo nhà thầu / tổ đội — ${selectedMaterial?esc(selectedMaterial):''}</h3>
+      <div class="chart-canvas-wrap"><canvas id="khoDashBarChart"></canvas></div>
+    </div>
+  `;
+  khoDashLineChart(matRows, selectedMaterial);
+  khoDashDonutChart(rangeRows);
+  khoDashBarChart(matRows.filter(r=>r.direction==='xuat'));
+  mountSparklines([
+    {id:'spark-kd0', data: matRows.filter(r=>r.direction==='nhap').map(r=>r.quantity||0)},
+    {id:'spark-kd1', data: matRows.filter(r=>r.direction==='xuat').map(r=>r.quantity||0)},
+    {id:'spark-kd2', data: matRows.map(r=>r.quantity||0)},
+    {id:'spark-kd3', data: matRows.map((r,i)=>i+1)}
   ]);
 }
 
@@ -1811,28 +2113,31 @@ function conDelete(id){
   state.confirmId=null; render();
 }
 
-/* gửi bản ghi thi công lên Apps Script — ảnh mới (data:) upload lên Drive, ảnh cũ (http) giữ nguyên link */
-async function syncConstruction(payload){
+/* gửi 1 bản ghi có kèm ảnh lên Apps Script — ảnh mới (data:) upload lên Drive, ảnh cũ (http) giữ nguyên link.
+   Dùng chung cho Thi công, Vật tư chính, Vật tư phụ. */
+async function syncWithPhotos(action, filePrefix, payload){
   if(!API_URL) return;
-  const existing = payload.photos.filter(p=>!p.startsWith('data:'));
-  const fresh = payload.photos.filter(p=>p.startsWith('data:'));
+  const photos = payload.photos||[];
+  const existing = photos.filter(p=>!p.startsWith('data:'));
+  const fresh = photos.filter(p=>p.startsWith('data:'));
   const newPhotos = fresh.map(dataUrl=>{
     const [meta, b64] = dataUrl.split(',');
     const mimeType = (meta.match(/data:(.*?);base64/)||[])[1] || 'image/jpeg';
-    return { base64:b64, mimeType, fileName:'thi_cong_'+payload.id+'_'+Date.now()+'.jpg' };
+    return { base64:b64, mimeType, fileName:filePrefix+'_'+payload.id+'_'+Date.now()+'.jpg' };
   });
   const dataOut = {...payload, photos: existing.join(',')};
   setSyncStatus('syncing');
   if(newPhotos.length){
     // có ảnh mới (base64) — payload quá dài để đi qua GET, gửi 1 lần qua POST, không thử lại được
-    apiPost('saveConstruction', { data: dataOut, newPhotos })
+    apiPost(action, { data: dataOut, newPhotos })
       .then(res=>setSyncStatus(res && res.status==='success' ? 'online' : 'offline'))
       .catch(()=> setSyncStatus('offline'));
   } else {
-    const result = await withRetry(()=>apiGetWrite('saveConstruction', { data: dataOut, newPhotos:[] }), [1500, 4000]);
+    const result = await withRetry(()=>apiGetWrite(action, { data: dataOut, newPhotos:[] }), [1500, 4000]);
     setSyncStatus(result.ok ? 'online' : 'offline');
   }
 }
+function syncConstruction(payload){ return syncWithPhotos('saveConstruction', 'thi_cong', payload); }
 function conChart(rows){
   const el = document.getElementById('conChart');
   if(!el) return;
@@ -2031,6 +2336,20 @@ function renderThiCongTongQuan(allRows){
   ]);
 }
 
+/* tổng hợp tổng công và số ngày thi công theo từng tầng, dùng cho bảng "Tiến độ theo tầng" */
+function floorProgressSummary(rows){
+  const byFloor = {};
+  rows.forEach(r=>{
+    const key = r.floor || '(Chưa gán tầng)';
+    if(!byFloor[key]) byFloor[key] = { floor:key, workers:0, dates:new Set() };
+    byFloor[key].workers += (r.workers||0);
+    if(r.date) byFloor[key].dates.add(r.date);
+  });
+  return Object.values(byFloor)
+    .map(f=>({ floor:f.floor, workers:f.workers, days:f.dates.size }))
+    .sort((a,b)=>b.workers-a.workers);
+}
+
 /* ---- tab: Báo cáo hàng ngày (CRUD gốc) ---- */
 function renderThiCongBaoCao(allRows){
   const sub = document.getElementById('thiCongSub');
@@ -2040,6 +2359,7 @@ function renderThiCongBaoCao(allRows){
   const floors = [...new Set(allRows.map(r=>r.floor))].sort();
   const hasActiveFilters = Object.values(state.conFilters).some(v=>v);
   const totalWorkers = rows.reduce((a,r)=>a+(r.workers||0),0);
+  const floorSummary = floorProgressSummary(rows.length?rows:allRows);
   const editing = state.edit.thi_cong ? allRows.find(r=>r.id===state.edit.thi_cong) : null;
   const ew = editing ? parseWeather(editing.weather) : {am:WEATHER_OPTIONS[0], pm:WEATHER_OPTIONS[0]};
   const sessionUser = getSession();
@@ -2104,6 +2424,22 @@ function renderThiCongBaoCao(allRows){
       <div class="chart-canvas-wrap"><canvas id="conChart"></canvas></div>
     </div>
 
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>Tiến độ theo tầng</h3></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Tầng</th><th class="num">Tổng số công</th><th class="num">Số ngày thi công</th></tr></thead>
+        <tbody>
+          ${floorSummary.length===0?`<tr class="empty-row"><td colspan="3">Chưa có dữ liệu.</td></tr>`:
+          floorSummary.map(f=>`
+            <tr>
+              <td><b>${esc(f.floor)}</b></td>
+              <td class="num">${formatCong(f.workers)} công</td>
+              <td class="num">${f.days}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+
     <div class="card">
       <div class="card-head"><h3>Danh sách báo cáo</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="filter-bar">
@@ -2132,7 +2468,7 @@ function renderThiCongBaoCao(allRows){
                 <b>${esc(r.team)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}
                 ${r.photos && r.photos.length ? `
                 <div class="photo-strip">
-                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox(${r.id},${i})" alt="Ảnh thi công">`).join('')}
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('construction',${r.id},${i})" alt="Ảnh thi công">`).join('')}
                   ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
                 </div>` : ''}
               </td>
@@ -2811,7 +3147,8 @@ function render(){
 render();
 syncAllFromServer();
 </script>
-<script>
+
+</body></html><script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('/sw.js').catch(function(){});
