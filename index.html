@@ -311,6 +311,7 @@
 
   .grid2{display:grid; grid-template-columns:1.35fr .85fr; gap:16px; align-items:start; margin-bottom:16px;}
   @media (max-width:920px){ .grid2{grid-template-columns:1fr;} }
+  .trend-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-bottom:16px;}
 
   .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
   .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:15px 18px; border-bottom:1px solid var(--line);}
@@ -980,6 +981,8 @@ const state = {
   pwdOk:false,
   khoTab:'chinh',
   khoChinhFilters:{ period:'', from:'', to:'', material:'', direction:'', team:'' },
+  khoChinhTrendPeriod:'ngay',
+  khoPhuTrendPeriod:'ngay',
   khoDashFilters:{ period:'thang', from:'', to:'', material:'' },
   profileOpen:false,
   pagination:{},
@@ -1777,6 +1780,65 @@ function kvtChinhDelete(id){
   syncWrite('deleteVatTuChinh', {id});
   state.confirmId=null; render();
 }
+function khoChinhTrendPeriodChange(period){ state.khoChinhTrendPeriod = period; renderKhoChinh(); }
+function khoChinhBucketKey(dateStr, period){
+  if(period==='thang') return String(dateStr).slice(0,7);
+  if(period==='tuan'){
+    const d = new Date(dateStr);
+    if(isNaN(d)) return dateStr;
+    const dow = (d.getDay()+6)%7;
+    d.setDate(d.getDate()-dow);
+    return d.toISOString().slice(0,10);
+  }
+  return dateStr;
+}
+function khoChinhBucketLabel(key, period){
+  if(period==='thang'){
+    const [y,m] = key.split('-');
+    return 'Th'+Number(m)+'/'+y;
+  }
+  if(period==='tuan') return 'Tuần '+vdate(key);
+  return vdate(key);
+}
+function khoChinhTrendChart(allRows, period, materials){
+  (state.charts.khoChinhTrendList||[]).forEach(c=>c.destroy());
+  state.charts.khoChinhTrendList = [];
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const nhapRows = allRows.filter(r=>r.direction==='nhap' && r.material && r.date);
+  materials.forEach((m, i)=>{
+    const el = document.getElementById('khoChinhTrendChart_'+i);
+    if(!el) return;
+    const matRows = nhapRows.filter(r=>r.material===m);
+    const byBucket = {};
+    matRows.forEach(r=>{
+      const key = khoChinhBucketKey(r.date, period);
+      byBucket[key] = (byBucket[key]||0) + (r.quantity||0);
+    });
+    const buckets = Object.keys(byBucket).sort();
+    const color = CHART_PALETTE[i%CHART_PALETTE.length];
+    const chart = new Chart(el, {
+      type:'line',
+      data:{
+        labels: buckets.map(k=>khoChinhBucketLabel(k, period)),
+        datasets:[{
+          label: m,
+          data: buckets.map(k=>byBucket[k]),
+          borderColor: color, backgroundColor: color+'2e',
+          tension:.35, pointRadius:3, borderWidth:2, fill:true
+        }]
+      },
+      options:{
+        maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+          x:{ ticks:{color:ink, font:{size:10.5}}, grid:{color:'rgba(255,255,255,.06)'} },
+          y:{ beginAtZero:true, ticks:{color:ink, precision:0, font:{size:10.5}}, grid:{color:'rgba(255,255,255,.08)'} }
+        }
+      }
+    });
+    state.charts.khoChinhTrendList.push(chart);
+  });
+}
 function renderKhoChinh(){
   const sub = document.getElementById('khoSub');
   const allRows = load(LS.vatTuChinh, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -1787,16 +1849,27 @@ function renderKhoChinh(){
   const kf = state.khoChinhFilters;
   const hasActiveFilters = !!(kf.period || kf.from || kf.to || kf.material || kf.direction || kf.team);
   const stock = khoStockSummary(allRows, 'material');
-  const lowStock = stock.filter(m=>m.ton<10);
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
   const editingIsOther = !!(editing && !KHO_MATERIALS.some(m=>m.label===editing.material));
   const pg = paginate(rows, 'khoChinh', 10);
+  const nhapMaterials = [...new Set(allRows.filter(r=>r.direction==='nhap'&&r.material).map(r=>r.material))];
 
   sub.innerHTML = `
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-kc0','kpi-blue','Số loại vật tư', String(stock.length))}
-      ${kpiCard('spark-kc1','kpi-purple','Tổng lượt giao dịch', String(allRows.length))}
-      ${kpiCard('spark-kc2','kpi-orange','Sắp hết hàng', String(lowStock.length), '< 10 đơn vị')}
+    <div class="section-head" style="margin-bottom:12px;">
+      <div><h3 style="margin:0;">Vật tư về theo thời gian</h3></div>
+      <div class="period-toggle">
+        <button class="${state.khoChinhTrendPeriod==='ngay'?'active':''}" onclick="khoChinhTrendPeriodChange('ngay')">Ngày</button>
+        <button class="${state.khoChinhTrendPeriod==='tuan'?'active':''}" onclick="khoChinhTrendPeriodChange('tuan')">Tuần</button>
+        <button class="${state.khoChinhTrendPeriod==='thang'?'active':''}" onclick="khoChinhTrendPeriodChange('thang')">Tháng</button>
+      </div>
+    </div>
+    <div class="trend-grid">
+      ${nhapMaterials.length===0?`<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Chưa có dữ liệu nhập kho.</div></div>`:
+      nhapMaterials.map((m,i)=>`
+        <div class="card">
+          <div class="card-head"><h3 style="font-size:13.5px;">${esc(m)}</h3></div>
+          <div class="card-body"><div class="chart-canvas-wrap" style="height:180px;"><canvas id="khoChinhTrendChart_${i}"></canvas></div></div>
+        </div>`).join('')}
     </div>
 
     ${state.formOpen.kho ? `
@@ -1918,13 +1991,48 @@ function renderKhoChinh(){
       ${paginationBar('khoChinh', pg)}
     </div>
   `;
-  mountSparklines([
-    {id:'spark-kc0', data: stock.map(m=>m.ton)},
-    {id:'spark-kc1', data: allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map((r,i)=>i+1)},
-    {id:'spark-kc2', data: stock.map(m=>m.ton)}
-  ]);
+  khoChinhTrendChart(allRows, state.khoChinhTrendPeriod, nhapMaterials);
 }
 
+function khoPhuTrendPeriodChange(period){ state.khoPhuTrendPeriod = period; renderKhoPhu(); }
+function khoPhuTrendChart(allRows, period){
+  const el = document.getElementById('khoPhuTrendChart');
+  if(!el) return;
+  if(state.charts.khoPhuTrend) state.charts.khoPhuTrend.destroy();
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const nhapRows = allRows.filter(r=>r.direction==='nhap' && r.itemName && r.date);
+  const items = [...new Set(nhapRows.map(r=>r.itemName))];
+  const byItemBucket = {};
+  items.forEach(m=>byItemBucket[m]={});
+  const bucketSet = new Set();
+  nhapRows.forEach(r=>{
+    const key = khoChinhBucketKey(r.date, period);
+    bucketSet.add(key);
+    byItemBucket[r.itemName][key] = (byItemBucket[r.itemName][key]||0) + (r.quantity||0);
+  });
+  const buckets = [...bucketSet].sort();
+  state.charts.khoPhuTrend = new Chart(el, {
+    type:'line',
+    data:{
+      labels: buckets.map(k=>khoChinhBucketLabel(k, period)),
+      datasets: items.map((m,i)=>({
+        label: m,
+        data: buckets.map(k=>byItemBucket[m][k]||0),
+        borderColor: CHART_PALETTE[i%CHART_PALETTE.length],
+        backgroundColor: CHART_PALETTE[i%CHART_PALETTE.length],
+        tension:.35, pointRadius:3, borderWidth:2, fill:false
+      }))
+    },
+    options:{
+      maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, position:'bottom', labels:{color:ink, boxWidth:10, font:{size:10.5}} } },
+      scales:{
+        x:{ ticks:{color:ink}, grid:{color:'rgba(255,255,255,.06)'} },
+        y:{ beginAtZero:true, ticks:{color:ink, precision:0}, grid:{color:'rgba(255,255,255,.08)'} }
+      }
+    }
+  });
+}
 /* ---- tab: Vật tư phụ (hàng phát sinh, có đơn giá) ---- */
 function kvtPhuCreateOrUpdate(e){
   e.preventDefault();
@@ -1979,15 +2087,20 @@ function renderKhoPhu(){
   allRows.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(r=>{
     if(r.direction==='nhap' && r.price) lastPrice[r.itemName] = r.price;
   });
-  const stockValue = stock.reduce((a,m)=>a + m.ton * (lastPrice[m.name]||0), 0);
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
   const pg = paginate(rows, 'khoPhu', 10);
 
   sub.innerHTML = `
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-kp0','kpi-blue','Số mặt hàng', String(stock.length))}
-      ${kpiCard('spark-kp1','kpi-purple','Giá trị tồn ước tính', vnd(stockValue))}
-      ${kpiCard('spark-kp2','kpi-orange','Tổng lượt giao dịch', String(allRows.length))}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <h3>Vật tư phụ về theo thời gian</h3>
+        <div class="period-toggle">
+          <button class="${state.khoPhuTrendPeriod==='ngay'?'active':''}" onclick="khoPhuTrendPeriodChange('ngay')">Ngày</button>
+          <button class="${state.khoPhuTrendPeriod==='tuan'?'active':''}" onclick="khoPhuTrendPeriodChange('tuan')">Tuần</button>
+          <button class="${state.khoPhuTrendPeriod==='thang'?'active':''}" onclick="khoPhuTrendPeriodChange('thang')">Tháng</button>
+        </div>
+      </div>
+      <div class="card-body"><div class="chart-canvas-wrap"><canvas id="khoPhuTrendChart"></canvas></div></div>
     </div>
 
     ${state.formOpen.kho ? `
@@ -2084,11 +2197,7 @@ function renderKhoPhu(){
       ${paginationBar('khoPhu', pg)}
     </div>
   `;
-  mountSparklines([
-    {id:'spark-kp0', data: stock.map(m=>m.ton)},
-    {id:'spark-kp1', data: stock.map(m=>m.ton*(lastPrice[m.name]||0))},
-    {id:'spark-kp2', data: allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map((r,i)=>i+1)}
-  ]);
+  khoPhuTrendChart(allRows, state.khoPhuTrendPeriod);
 }
 
 /* ---- tab: Dashboard (bản demo — vật tư chính, nhập về theo ngày) ---- */
