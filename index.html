@@ -531,14 +531,18 @@ function withRetry(fn, delaysMs){
     tryOnce();
   });
 }
+function currentActorName(){
+  const s = getSession();
+  return s ? (s.fullName || s.username || 'Không rõ') : 'Không rõ';
+}
 async function syncWrite(action, payload){
   if(!API_URL) return;
   setSyncStatus('syncing');
-  const req = Object.assign({}, payload);
+  const req = Object.assign({actor: currentActorName()}, payload);
   const encodedLen = encodeURIComponent(JSON.stringify(req)).length;
   const attempt = encodedLen < 6000
     ? ()=>apiGetWrite(action, req)
-    : ()=>apiPost(action, payload); // payload quá dài (VD nhiều ảnh cũ) — gửi 1 lần, không thử lại được
+    : ()=>apiPost(action, req); // payload quá dài (VD nhiều ảnh cũ) — gửi 1 lần, không thử lại được
   const result = await withRetry(attempt, encodedLen < 6000 ? [1500, 4000] : []);
   setSyncStatus(result.ok ? 'online' : 'offline');
 }
@@ -729,6 +733,15 @@ function formatCong(v){
   return (r % 1 === 0) ? String(r) : r.toFixed(1);
 }
 function uid(list){ return list.length ? Math.max(...list.map(x=>x.id))+1 : 1; }
+/* Link Drive trả về từ Code.gs (file.getUrl()) là link "xem" dạng trang HTML
+   (.../file/d/ID/view...) — trình duyệt không hiển thị được link này trong thẻ <img>.
+   Hàm này chuyển link đó (hoặc link uc?...id=... cũ) thành link ảnh nhúng trực tiếp
+   được. Ảnh chưa upload xong (data:...) hoặc link không nhận diện được thì giữ nguyên. */
+function driveImgUrl(url){
+  if(!url || String(url).startsWith('data:')) return url;
+  const m = String(url).match(/\/file\/d\/([^/]+)/) || String(url).match(/[?&]id=([^&]+)/);
+  return m ? ('https://drive.google.com/thumbnail?id='+m[1]+'&sz=w1000') : url;
+}
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function initials(name){
   if(!name) return '?';
@@ -777,7 +790,7 @@ function renderConPhotoGrid(){
   if(!grid) return;
   grid.innerHTML = state.conPhotoDraft.map((src,i)=>`
     <div class="photo-thumb">
-      <img src="${src}" alt="Ảnh thi công">
+      <img src="${driveImgUrl(src)}" alt="Ảnh thi công">
       <button type="button" onclick="removeConPhotoDraft(${i})">×</button>
     </div>`).join('');
   const input = document.getElementById('conPhotoInput');
@@ -805,7 +818,7 @@ function renderKhoPhotoGrid(){
   if(!grid) return;
   grid.innerHTML = state.khoPhotoDraft.map((src,i)=>`
     <div class="photo-thumb">
-      <img src="${src}" alt="Ảnh vật tư">
+      <img src="${driveImgUrl(src)}" alt="Ảnh vật tư">
       <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
     </div>`).join('');
   const input = document.getElementById('khoPhotoInput');
@@ -825,7 +838,7 @@ function closeLightbox(){ state.lightboxSrc=null; renderLightbox(); }
 function renderLightbox(){
   document.getElementById('lightbox').innerHTML = state.lightboxSrc ? `
     <div class="lightbox-backdrop" onclick="closeLightbox()">
-      <img src="${state.lightboxSrc}" onclick="event.stopPropagation()" alt="Ảnh thi công phóng to">
+      <img src="${driveImgUrl(state.lightboxSrc)}" onclick="event.stopPropagation()" alt="Ảnh thi công phóng to">
       <button class="lightbox-close" onclick="closeLightbox()">×</button>
     </div>` : '';
 }
@@ -926,6 +939,7 @@ const KHO_MATERIALS = [
   { label:'Trả ballet', unit:'cái' },
   { label:'Khác', unit:'' }
 ];
+const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','m','m2','lít','bó'];
 const WEATHER_OPTIONS = ['Nắng','Nhiều mây','Âm u','Mưa rào','Mưa to'];
 const CHART_PALETTE = ['#3b82f6','#f59e0b','#a855f7','#22c55e','#f43f5e','#14b8a6','#eab308','#6366f1','#ec4899','#84cc16'];
 const HOME_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
@@ -986,6 +1000,9 @@ const state = {
   khoDashFilters:{ period:'thang', from:'', to:'', material:'' },
   profileOpen:false,
   pagination:{},
+  adminTab:'accounts',
+  auditLog:[],
+  auditLogStatus:'idle',
   hasSyncedOnce: !API_URL
 };
 
@@ -1707,6 +1724,22 @@ function toggleKhoMaterialOther(sel){
   const form = sel.closest('form');
   const otherRow = form.querySelector('.kho-other-row');
   if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
+  // chọn vật tư có sẵn -> tự điền đơn vị mặc định của vật tư đó, nhưng người dùng vẫn có thể đổi lại sau
+  const defaultUnit = (KHO_MATERIALS.find(m=>m.label===sel.value)||{}).unit;
+  const unitSel = form.querySelector('select[name="unit"]');
+  if(unitSel && defaultUnit){
+    unitSel.value = UNIT_OPTIONS.includes(defaultUnit) ? defaultUnit : 'Khác';
+    toggleKhoUnitOther(unitSel);
+    if(!UNIT_OPTIONS.includes(defaultUnit)){
+      const unitOtherInput = form.querySelector('input[name="unitOther"]');
+      if(unitOtherInput) unitOtherInput.value = defaultUnit;
+    }
+  }
+}
+function toggleKhoUnitOther(sel){
+  const form = sel.closest('form');
+  const otherRow = form.querySelector('.kho-unit-other-row');
+  if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
 }
 function toggleKhoPhuDirFields(sel){
   const form = sel.closest('form');
@@ -1742,7 +1775,8 @@ function kvtChinhCreateOrUpdate(e){
   const materialSel = f.material.value;
   const isOther = materialSel === 'Khác';
   const material = isOther ? f.materialOther.value.trim() : materialSel;
-  const unit = isOther ? f.unitOther.value.trim() : ((KHO_MATERIALS.find(m=>m.label===materialSel)||{}).unit || '');
+  const unitSel = f.unit.value;
+  const unit = unitSel === 'Khác' ? f.unitOther.value.trim() : unitSel;
   const direction = f.direction.value;
   const payload = {
     date:f.date.value, direction, material, unit,
@@ -1851,6 +1885,7 @@ function renderKhoChinh(){
   const stock = khoStockSummary(allRows, 'material');
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
   const editingIsOther = !!(editing && !KHO_MATERIALS.some(m=>m.label===editing.material));
+  const editingUnitIsOther = !!(editing && !UNIT_OPTIONS.includes(editing.unit));
   const pg = paginate(rows, 'khoChinh', 10);
   const nhapMaterials = [...new Set(allRows.filter(r=>r.direction==='nhap'&&r.material).map(r=>r.material))];
 
@@ -1894,9 +1929,17 @@ function renderKhoChinh(){
             </div>
             <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="0.01" required value="${editing?editing.quantity:''}"></div>
           </div>
-          <div class="formrow2 kho-other-row" style="${editingIsOther?'':'display:none;'}">
-            <div class="field"><label>Tên vật tư khác</label><input name="materialOther" value="${editingIsOther?esc(editing.material):''}"></div>
-            <div class="field"><label>Đơn vị tính</label><input name="unitOther" value="${editingIsOther?esc(editing.unit):''}"></div>
+          <div class="field kho-other-row" style="${editingIsOther?'':'display:none;'}">
+            <label>Tên vật tư khác</label><input name="materialOther" value="${editingIsOther?esc(editing.material):''}">
+          </div>
+          <div class="formrow2">
+            <div class="field"><label>Đơn vị tính</label>
+              <select name="unit" onchange="toggleKhoUnitOther(this)">
+                ${UNIT_OPTIONS.map(u=>`<option value="${esc(u)}" ${editing&&editing.unit===u?'selected':''}>${esc(u)}</option>`).join('')}
+                <option value="Khác" ${editingUnitIsOther?'selected':''}>Khác</option>
+              </select>
+            </div>
+            <div class="field kho-unit-other-row" style="${editingUnitIsOther?'':'display:none;'}"><label>Đơn vị khác</label><input name="unitOther" value="${editingUnitIsOther?esc(editing.unit):''}"></div>
           </div>
           <div class="field kho-team-row" style="${(!editing||editing.direction==='xuat')?'':'display:none;'}">
             <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}">
@@ -1909,7 +1952,7 @@ function renderKhoChinh(){
             <div class="photo-grid" id="khoPhotoGrid">
               ${state.khoPhotoDraft.map((src,i)=>`
                 <div class="photo-thumb">
-                  <img src="${src}" alt="Ảnh vật tư">
+                  <img src="${driveImgUrl(src)}" alt="Ảnh vật tư">
                   <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
                 </div>`).join('')}
             </div>
@@ -1975,7 +2018,7 @@ function renderKhoChinh(){
               <td><span class="chip ${r.direction==='xuat'?'chip-chi':'chip-thu'}">${r.direction==='xuat'?'Xuất':'Nhập'}</span></td>
               <td>${esc(r.material)}${r.photos && r.photos.length ? `
                 <div class="photo-strip">
-                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('vatTuChinh',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('vatTuChinh',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
                   ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
                 </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
@@ -2136,7 +2179,7 @@ function renderKhoPhu(){
             <div class="photo-grid" id="khoPhotoGrid">
               ${state.khoPhotoDraft.map((src,i)=>`
                 <div class="photo-thumb">
-                  <img src="${src}" alt="Ảnh vật tư">
+                  <img src="${driveImgUrl(src)}" alt="Ảnh vật tư">
                   <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
                 </div>`).join('')}
             </div>
@@ -2180,7 +2223,7 @@ function renderKhoPhu(){
               <td><span class="chip ${r.direction==='xuat'?'chip-chi':'chip-thu'}">${r.direction==='xuat'?'Xuất':'Nhập'}</span></td>
               <td><b>${esc(r.itemName)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}${r.photos && r.photos.length ? `
                 <div class="photo-strip">
-                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('vatTuPhu',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('vatTuPhu',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
                   ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
                 </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
@@ -2392,14 +2435,15 @@ async function syncWithPhotos(action, filePrefix, payload){
     return { base64:b64, mimeType, fileName:filePrefix+'_'+payload.id+'_'+Date.now()+'.jpg' };
   });
   const dataOut = {...payload, photos: existing.join(',')};
+  const actor = currentActorName();
   setSyncStatus('syncing');
   if(newPhotos.length){
     // có ảnh mới (base64) — payload quá dài để đi qua GET, gửi 1 lần qua POST, không thử lại được
-    apiPost(action, { data: dataOut, newPhotos })
+    apiPost(action, { data: dataOut, newPhotos, actor })
       .then(res=>setSyncStatus(res && res.status==='success' ? 'online' : 'offline'))
       .catch(()=> setSyncStatus('offline'));
   } else {
-    const result = await withRetry(()=>apiGetWrite(action, { data: dataOut, newPhotos:[] }), [1500, 4000]);
+    const result = await withRetry(()=>apiGetWrite(action, { data: dataOut, newPhotos:[], actor }), [1500, 4000]);
     setSyncStatus(result.ok ? 'online' : 'offline');
   }
 }
@@ -2675,7 +2719,7 @@ function renderThiCongBaoCao(allRows){
             <div class="photo-grid" id="conPhotoGrid">
               ${state.conPhotoDraft.map((src,i)=>`
                 <div class="photo-thumb">
-                  <img src="${src}" alt="Ảnh thi công">
+                  <img src="${driveImgUrl(src)}" alt="Ảnh thi công">
                   <button type="button" onclick="removeConPhotoDraft(${i})">×</button>
                 </div>`).join('')}
             </div>
@@ -2738,7 +2782,7 @@ function renderThiCongBaoCao(allRows){
                 <b>${esc(r.team)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}
                 ${r.photos && r.photos.length ? `
                 <div class="photo-strip">
-                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${src}" class="photo-chip" onclick="openLightbox('construction',${r.id},${i})" alt="Ảnh thi công">`).join('')}
+                  ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('construction',${r.id},${i})" alt="Ảnh thi công">`).join('')}
                   ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
                 </div>` : ''}
               </td>
@@ -3333,6 +3377,23 @@ function adminSaveUserModules(e, username){
   render();
   return false;
 }
+function adminTabSwitch(tab){
+  state.adminTab = tab;
+  if(tab==='auditLog') state.auditLogStatus='idle'; // ép tải lại mỗi lần bấm vào tab để luôn thấy dữ liệu mới nhất
+  render();
+}
+async function loadAuditLog(){
+  if(!API_URL){ state.auditLogStatus='error'; render(); return; }
+  state.auditLogStatus='loading'; render();
+  try{
+    const rows = await apiGet('auditLog');
+    state.auditLog = Array.isArray(rows) ? rows.slice().reverse() : [];
+    state.auditLogStatus='loaded';
+  }catch(err){
+    state.auditLogStatus='error';
+  }
+  render();
+}
 function renderAdmin(){
   const users = load(LS.users, []);
   document.getElementById('page').innerHTML = `
@@ -3340,9 +3401,22 @@ function renderAdmin(){
       <div>
         <span class="eyebrow">Quản trị</span>
         <h1>Quản trị tài khoản</h1>
-        <p>Tạo tài khoản Editor và chọn các module được phép truy cập — có thể chọn nhiều module cho 1 tài khoản.</p>
+        <p>Tạo tài khoản Editor, chọn module được phép truy cập, và xem nhật ký ai đã thay đổi gì.</p>
       </div>
     </div>
+    <div class="subtab-bar">
+      <button class="subtab ${state.adminTab==='accounts'?'active':''}" onclick="adminTabSwitch('accounts')">Tài khoản</button>
+      <button class="subtab ${state.adminTab==='auditLog'?'active':''}" onclick="adminTabSwitch('auditLog')">Nhật ký hệ thống</button>
+    </div>
+    <div id="adminSub"></div>
+  `;
+  if(state.adminTab==='auditLog'){
+    renderAdminAuditLog();
+    if(state.auditLogStatus==='idle') loadAuditLog();
+  } else renderAdminAccounts(users);
+}
+function renderAdminAccounts(users){
+  document.getElementById('adminSub').innerHTML = `
     <div class="grid2">
       <div class="card">
         <div class="card-head"><h3>Danh sách tài khoản</h3></div>
@@ -3392,6 +3466,41 @@ function renderAdmin(){
           </form>
         </div>
       </div>
+    </div>
+  `;
+}
+function renderAdminAuditLog(){
+  const sub = document.getElementById('adminSub');
+  if(!API_URL){
+    sub.innerHTML = `<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Nhật ký chỉ xem được khi đã kết nối Google Sheets thật.</div></div>`;
+    return;
+  }
+  if(state.auditLogStatus==='loading'){
+    sub.innerHTML = `<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Đang tải nhật ký...</div></div>`;
+    return;
+  }
+  if(state.auditLogStatus==='error'){
+    sub.innerHTML = `<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Không tải được nhật ký. <button class="link-btn" onclick="loadAuditLog()">Thử lại</button></div></div>`;
+    return;
+  }
+  const rows = state.auditLog;
+  const pg = paginate(rows, 'auditLog', 15);
+  sub.innerHTML = `
+    <div class="card">
+      <div class="card-head"><h3>Nhật ký thay đổi dữ liệu</h3><button class="link-btn" onclick="loadAuditLog()">Làm mới</button></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Nội dung</th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr class="empty-row"><td colspan="3">Chưa có thay đổi nào được ghi lại.</td></tr>`:
+          pg.pageRows.map(r=>`
+            <tr>
+              <td class="num" style="white-space:nowrap;">${esc(pick(r,'timestamp'))}</td>
+              <td><b>${esc(pick(r,'actor'))}</b></td>
+              <td>${esc(pick(r,'summary'))}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+      ${paginationBar('auditLog', pg)}
     </div>
   `;
 }
