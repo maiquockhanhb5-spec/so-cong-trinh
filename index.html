@@ -605,8 +605,10 @@ function normalizeVatTuPhu(rows){
 function normalizeConstruction(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, team:String(pick(r,'team')||''), task:String(pick(r,'task')||''), date:normalizeDate(pick(r,'date')),
-    floor:String(pick(r,'floor')||''), workers:Number(pick(r,'workers'))||0, progress:Number(pick(r,'progress'))||0,
-    note:String(pick(r,'note')||''),
+    floor:String(pick(r,'floor')||''), workers:Number(pick(r,'workers'))||0,
+    workersAm:Number(pick(r,'workersAm'))||0, workersPm:Number(pick(r,'workersPm'))||0,
+    progress:Number(pick(r,'progress'))||0,
+    note:String(pick(r,'note')||''), weather:String(pick(r,'weather')||''), reportedBy:String(pick(r,'reportedBy')||''),
     photos: pick(r,'photos') ? String(pick(r,'photos')).split(',').map(s=>s.trim()).filter(Boolean) : []
   }));
 }
