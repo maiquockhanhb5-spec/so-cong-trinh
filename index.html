@@ -965,6 +965,13 @@ const WALLET_ICON = '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M
 const CHEVRON_DOWN_ICON = '<path d="m6 9 6 6 6-6"/>';
 const CHEVRON_LEFT_ICON = '<path d="m15 18-6-6 6-6"/>';
 
+/* danh sách tên tổ đội "đã biết" — gộp từ cả báo cáo thi công lẫn danh sách nhân sự tổ đội,
+   dùng làm gợi ý chọn sẵn để tránh mỗi người gõ 1 kiểu tên khác nhau cho cùng 1 tổ. */
+function getKnownTeams(){
+  const fromCon = load(LS.construction, []).map(r=>r.team);
+  const fromStaff = load(LS.staffTd, []).map(r=>r.team);
+  return [...new Set([...fromCon, ...fromStaff])].filter(Boolean).sort();
+}
 function parseModules(str){
   return String(str||'').split(',').map(s=>s.trim()).filter(Boolean);
 }
@@ -1007,6 +1014,7 @@ const state = {
   profileOpen:false,
   pagination:{},
   adminTab:'accounts',
+  mergeTeamMsg:null,
   auditLog:[],
   auditLogStatus:'idle',
   hasSyncedOnce: !API_URL
@@ -2387,6 +2395,11 @@ function toggleConFloorOther(sel){
   const otherRow = form.querySelector('.con-floor-other-row');
   if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
 }
+function toggleConTeamOther(sel){
+  const form = sel.closest('form');
+  const otherRow = form.querySelector('.con-team-other-row');
+  if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
+}
 function conCreateOrUpdate(e){
   e.preventDefault();
   const f = e.target;
@@ -2395,8 +2408,10 @@ function conCreateOrUpdate(e){
   const workersPm = Math.max(0, Number(f.workersPm.value)||0);
   const floorSel = f.floor.value;
   const floor = floorSel==='Khác' ? f.floorOther.value.trim() : floorSel;
+  const teamSel = f.team.value;
+  const team = teamSel==='Khác' ? f.teamOther.value.trim() : teamSel;
   const payload = {
-    team:f.team.value.trim(), task:f.task.value, date:f.date.value, floor,
+    team, task:f.task.value, date:f.date.value, floor,
     workersAm, workersPm, workers: (workersAm+workersPm)/2,
     progress: Math.max(0,Math.min(100, Number(f.progress.value)||0)), note:f.note.value.trim(),
     weather: 'Sáng: '+f.weatherAm.value+' / Chiều: '+f.weatherPm.value,
@@ -2698,6 +2713,8 @@ function renderThiCongBaoCao(allRows){
   const sessionUser = getSession();
   const defaultReporter = editing ? (editing.reportedBy||'') : ((sessionUser&&sessionUser.fullName)||'');
   const editingFloorIsOther = !!(editing && !FLOOR_OPTIONS.includes(editing.floor));
+  const knownTeams = getKnownTeams();
+  const editingTeamIsOther = !!(editing && !knownTeams.includes(editing.team)) || (!editing && knownTeams.length===0);
 
   sub.innerHTML = `
     ${state.formOpen.thi_cong ? `
@@ -2706,13 +2723,19 @@ function renderThiCongBaoCao(allRows){
       <div class="card-body">
         <form onsubmit="conCreateOrUpdate(event)">
           <div class="formrow2">
-            <div class="field"><label>Tổ đội</label><input name="team" required placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}"></div>
+            <div class="field"><label>Tổ đội</label>
+              <select name="team" onchange="toggleConTeamOther(this)">
+                ${knownTeams.map(t=>`<option value="${esc(t)}" ${editing&&editing.team===t?'selected':''}>${esc(t)}</option>`).join('')}
+                <option value="Khác" ${editingTeamIsOther?'selected':''}>+ Tổ mới...</option>
+              </select>
+            </div>
             <div class="field"><label>Công việc</label>
               <select name="task">
                 ${TASK_OPTIONS.map(t=>`<option value="${t}" ${editing&&editing.task===t?'selected':''}>${t}</option>`).join('')}
               </select>
             </div>
           </div>
+          <div class="field con-team-other-row" style="${editingTeamIsOther?'':'display:none;'}"><label>Tên tổ mới</label><input name="teamOther" placeholder="VD: Tổ 1 - Anh Bình" value="${editingTeamIsOther&&editing?esc(editing.team):''}"></div>
           <div class="formrow2">
             <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
             <div class="field"><label>Tầng</label>
@@ -2921,9 +2944,38 @@ function renderThiCongThoiTiet(allRows){
 }
 
 /* ---- tab: Đội nhóm (tổng hợp theo tổ đội, roster chi tiết ở module Nhân sự Tổ đội) ---- */
+async function mergeTeams(){
+  const form = document.getElementById('mergeTeamsForm');
+  const checked = Array.from(form.querySelectorAll('input[name="mergeTeamPick"]:checked')).map(el=>el.value);
+  const target = form.querySelector('input[name="mergeTarget"]').value.trim();
+  if(checked.length<2){ state.mergeTeamMsg={ok:false,text:'Chọn ít nhất 2 tên tổ đội để gộp.'}; render(); return; }
+  if(!target){ state.mergeTeamMsg={ok:false,text:'Nhập tên chung sau khi gộp.'}; render(); return; }
+  state.mergeTeamMsg = {ok:true, text:'Đang gộp...'};
+  render();
+  const conRows = load(LS.construction, []);
+  const conChanged = [];
+  const conNew = conRows.map(r=>{
+    if(checked.includes(r.team) && r.team!==target){ const nr={...r, team:target}; conChanged.push(nr); return nr; }
+    return r;
+  });
+  save(LS.construction, conNew);
+  const staffRows = load(LS.staffTd, []);
+  const staffChanged = [];
+  const staffNew = staffRows.map(r=>{
+    if(checked.includes(r.team) && r.team!==target){ const nr={...r, team:target}; staffChanged.push(nr); return nr; }
+    return r;
+  });
+  save(LS.staffTd, staffNew);
+  for(const r of conChanged){ await syncWithPhotos('saveConstruction','thi_cong', r); }
+  for(const r of staffChanged){ await syncWrite('saveStaffTd', {data:r}); }
+  state.mergeTeamMsg = {ok:true, text:`Đã gộp ${conChanged.length} báo cáo thi công và ${staffChanged.length} công nhân vào tổ "${target}".`};
+  render();
+}
 function renderThiCongDoiNhom(allRows){
   const sub = document.getElementById('thiCongSub');
   const teams = [...new Set(allRows.map(r=>r.team))];
+  const s = getSession();
+  const isAdmin = !!(s && s.role==='admin');
   const cards = teams.map((t,i)=>{
     const rows = allRows.filter(r=>r.team===t);
     const totalWorkers = rows.reduce((a,r)=>a+(r.workers||0),0);
@@ -2951,6 +3003,21 @@ function renderThiCongDoiNhom(allRows){
     <div class="hint-box" style="margin-top:16px;">
       Đây là tổng hợp nhanh theo dữ liệu báo cáo thi công. Để quản lý danh sách công nhân, vai trò và đơn giá công chi tiết của từng tổ đội, vào mục <b>Nhân sự (Tổ đội)</b> ở menu bên trái.
     </div>
+    ${isAdmin && teams.length>1 ? `
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><h3>Gộp tổ đội trùng lặp</h3></div>
+      <div class="card-body">
+        <p style="color:var(--muted); font-size:12.5px; margin-bottom:12px;">Nếu 1 tổ bị ghi nhiều tên khác nhau (VD: "Ngân", "Tổ 1 - Ngân", "Tổ Ngân"), chọn các tên đó rồi đặt 1 tên chung — hệ thống sẽ cập nhật lại toàn bộ báo cáo thi công và danh sách công nhân đang dùng các tên đã chọn về tên chung này.</p>
+        <form id="mergeTeamsForm" onsubmit="event.preventDefault(); mergeTeams();">
+          <div class="check-list">
+            ${teams.map(t=>`<label class="check-item"><input type="checkbox" name="mergeTeamPick" value="${esc(t)}"> ${esc(t)}</label>`).join('')}
+          </div>
+          <div class="field" style="margin-top:12px; max-width:320px;"><label>Tên chung sau khi gộp</label><input name="mergeTarget" placeholder="VD: Tổ Ngân"></div>
+          ${state.mergeTeamMsg?`<div class="${state.mergeTeamMsg.ok?'success-msg':'error-msg'}" style="margin-top:10px;">${esc(state.mergeTeamMsg.text)}</div>`:''}
+          <button class="btn btn-accent" type="submit" style="margin-top:12px;">Gộp tổ đội đã chọn</button>
+        </form>
+      </div>
+    </div>` : ''}
   `;
 }
 
@@ -3097,12 +3164,19 @@ function renderNhanSuCT(){
 
 /* ---------- NHÂN SỰ TỔ ĐỘI ---------- */
 const TEAM_ROLE_OPTIONS = ['Tổ trưởng','Thợ chính','Thợ phụ'];
+function toggleStaffTdTeamOther(sel){
+  const form = sel.closest('form');
+  const otherRow = form.querySelector('.staff-td-team-other-row');
+  if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
+}
 function staffTdCreateOrUpdate(e){
   e.preventDefault();
   const f = e.target;
   const rows = load(LS.staffTd, []);
+  const teamSel = f.team.value;
+  const team = teamSel==='Khác' ? f.teamOther.value.trim() : teamSel;
   const payload = {
-    name:f.name.value.trim(), team:f.team.value.trim(), role:f.role.value, phone:f.phone.value.trim(),
+    name:f.name.value.trim(), team, role:f.role.value, phone:f.phone.value.trim(),
     startDate:f.startDate.value, wage:Number(f.wage.value)||0, status:f.status.value, note:f.note.value.trim()
   };
   if(state.edit.nhansu_td){
@@ -3148,6 +3222,8 @@ function renderNhanSuTD(){
   const activeCount = allRows.filter(r=>r.status==='dang_lam').length;
   const teamCount = new Set(allRows.map(r=>r.team)).size;
   const editing = state.edit.nhansu_td ? allRows.find(r=>r.id===state.edit.nhansu_td) : null;
+  const knownTeamsTd = getKnownTeams();
+  const editingTeamTdIsOther = !!(editing && !knownTeamsTd.includes(editing.team)) || (!editing && knownTeamsTd.length===0);
 
   const recent = activityCard('Công nhân gần đây', allRows.slice().sort((a,b)=>b.id-a.id).slice(0,4).map(r=>({
     icon: MODULES.nhansu_td.icon, soft:MODULES.nhansu_td.soft, color:MODULES.nhansu_td.color,
@@ -3176,8 +3252,14 @@ function renderNhanSuTD(){
         <form onsubmit="staffTdCreateOrUpdate(event)">
           <div class="formrow2">
             <div class="field"><label>Họ tên</label><input name="name" required value="${editing?esc(editing.name):''}"></div>
-            <div class="field"><label>Tổ đội</label><input name="team" required placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}"></div>
+            <div class="field"><label>Tổ đội</label>
+              <select name="team" onchange="toggleStaffTdTeamOther(this)">
+                ${knownTeamsTd.map(t=>`<option value="${esc(t)}" ${editing&&editing.team===t?'selected':''}>${esc(t)}</option>`).join('')}
+                <option value="Khác" ${editingTeamTdIsOther?'selected':''}>+ Tổ mới...</option>
+              </select>
+            </div>
           </div>
+          <div class="field staff-td-team-other-row" style="${editingTeamTdIsOther?'':'display:none;'}"><label>Tên tổ mới</label><input name="teamOther" placeholder="VD: Tổ 1 - Anh Bình" value="${editingTeamTdIsOther&&editing?esc(editing.team):''}"></div>
           <div class="formrow2">
             <div class="field"><label>Vai trò</label>
               <select name="role">
