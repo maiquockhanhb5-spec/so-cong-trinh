@@ -2482,14 +2482,28 @@ async function syncWithPhotos(action, filePrefix, payload){
   }
 }
 function syncConstruction(payload){ return syncWithPhotos('saveConstruction', 'thi_cong', payload); }
+function floorDisplayLabel(f){
+  const s = String(f==null?'':f).trim();
+  return /^\d+$/.test(s) ? 'Tầng '+s : s;
+}
 function conChart(rows){
   const el = document.getElementById('conChart');
   if(!el) return;
   if(state.charts.con) state.charts.con.destroy();
   const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  // gộp theo cặp (tổ đội, tầng) — mỗi cặp chỉ lấy báo cáo mới nhất để biết tiến độ hiện tại
+  // của tổ đó ở tầng đó, thay vì hiện lại từng bản ghi lịch sử riêng lẻ.
+  const byKey = {};
+  rows.forEach(r=>{
+    const key = r.team+'|||'+r.floor;
+    if(!byKey[key] || (r.date||'') >= (byKey[key].date||'')) byKey[key] = r;
+  });
+  const combos = Object.values(byKey).sort((a,b)=>
+    String(a.floor).localeCompare(String(b.floor), 'vi', {numeric:true}) || String(a.team).localeCompare(String(b.team), 'vi')
+  );
   state.charts.con = new Chart(el, {
     type:'bar',
-    data:{ labels: rows.map(r=>`${r.team} · ${r.task}`), datasets:[{ data: rows.map(r=>r.progress), backgroundColor: MODULES.thi_cong.color, borderRadius:6, maxBarThickness:26 }] },
+    data:{ labels: combos.map(r=>`${floorDisplayLabel(r.floor)} - ${r.team}`), datasets:[{ data: combos.map(r=>r.progress), backgroundColor: MODULES.thi_cong.color, borderRadius:6, maxBarThickness:26 }] },
     options:{
       maintainAspectRatio:false,
       indexAxis:'y',
@@ -2783,7 +2797,7 @@ function renderThiCongBaoCao(allRows){
     </div>` : ''}
 
     <div class="card chartbox" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:12px;">Tiến độ theo bản ghi</h3>
+      <h3 style="margin-bottom:12px;">Tiến độ theo tổ - tầng</h3>
       <div class="chart-canvas-wrap"><canvas id="conChart"></canvas></div>
     </div>
 
