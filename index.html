@@ -2453,7 +2453,13 @@ async function syncWithPhotos(action, filePrefix, payload){
   if(newPhotos.length){
     // có ảnh mới (base64) — payload quá dài để đi qua GET, gửi 1 lần qua POST, không thử lại được
     apiPost(action, { data: dataOut, newPhotos, actor })
-      .then(res=>setSyncStatus(res && res.status==='success' ? 'online' : 'offline'))
+      .then(res=>{
+        setSyncStatus(res && res.status==='success' ? 'online' : 'offline');
+        // ảnh base64 vừa gửi đi vẫn còn nằm nguyên trong bộ nhớ tạm (localStorage) của máy —
+        // nếu không dọn, mỗi lần thêm ảnh mới sẽ làm bộ nhớ đầy dần cho tới khi không lưu được nữa.
+        // Đồng bộ lại toàn bộ ngay sau khi ảnh upload xong để thay base64 bằng link Drive gọn nhẹ.
+        syncAllFromServer();
+      })
       .catch(()=> setSyncStatus('offline'));
   } else {
     const result = await withRetry(()=>apiGetWrite(action, { data: dataOut, newPhotos:[], actor }), [1500, 4000]);
