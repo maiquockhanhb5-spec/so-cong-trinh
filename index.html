@@ -942,6 +942,7 @@ const KHO_MATERIALS = [
   { label:'Khác', unit:'' }
 ];
 const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','m','m2','lít','bó'];
+const FLOOR_OPTIONS = Array.from({length:45},(_,i)=>'Tầng '+(i+1));
 const WEATHER_OPTIONS = ['Nắng','Nhiều mây','Âm u','Mưa rào','Mưa to'];
 const CHART_PALETTE = ['#3b82f6','#f59e0b','#a855f7','#22c55e','#f43f5e','#14b8a6','#eab308','#6366f1','#ec4899','#84cc16'];
 const HOME_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
@@ -2381,14 +2382,21 @@ function parseWeather(str){
   const m = String(str||'').match(/Sáng:\s*(.*?)\s*\/\s*Chiều:\s*(.*)$/);
   return m ? {am:m[1], pm:m[2]} : {am:WEATHER_OPTIONS[0], pm:WEATHER_OPTIONS[0]};
 }
+function toggleConFloorOther(sel){
+  const form = sel.closest('form');
+  const otherRow = form.querySelector('.con-floor-other-row');
+  if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
+}
 function conCreateOrUpdate(e){
   e.preventDefault();
   const f = e.target;
   const rows = load(LS.construction, []);
   const workersAm = Math.max(0, Number(f.workersAm.value)||0);
   const workersPm = Math.max(0, Number(f.workersPm.value)||0);
+  const floorSel = f.floor.value;
+  const floor = floorSel==='Khác' ? f.floorOther.value.trim() : floorSel;
   const payload = {
-    team:f.team.value.trim(), task:f.task.value, date:f.date.value, floor:f.floor.value.trim(),
+    team:f.team.value.trim(), task:f.task.value, date:f.date.value, floor,
     workersAm, workersPm, workers: (workersAm+workersPm)/2,
     progress: Math.max(0,Math.min(100, Number(f.progress.value)||0)), note:f.note.value.trim(),
     weather: 'Sáng: '+f.weatherAm.value+' / Chiều: '+f.weatherPm.value,
@@ -2683,6 +2691,7 @@ function renderThiCongBaoCao(allRows){
   const ew = editing ? parseWeather(editing.weather) : {am:WEATHER_OPTIONS[0], pm:WEATHER_OPTIONS[0]};
   const sessionUser = getSession();
   const defaultReporter = editing ? (editing.reportedBy||'') : ((sessionUser&&sessionUser.fullName)||'');
+  const editingFloorIsOther = !!(editing && !FLOOR_OPTIONS.includes(editing.floor));
 
   sub.innerHTML = `
     ${state.formOpen.thi_cong ? `
@@ -2700,8 +2709,14 @@ function renderThiCongBaoCao(allRows){
           </div>
           <div class="formrow2">
             <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
-            <div class="field"><label>Tầng</label><input name="floor" required placeholder="VD: Tầng 1, Trệt, Sân thượng" value="${editing?esc(editing.floor):''}"></div>
+            <div class="field"><label>Tầng</label>
+              <select name="floor" onchange="toggleConFloorOther(this)">
+                ${FLOOR_OPTIONS.map(fl=>`<option value="${esc(fl)}" ${editing&&editing.floor===fl?'selected':''}>${esc(fl)}</option>`).join('')}
+                <option value="Khác" ${editingFloorIsOther?'selected':''}>Khác</option>
+              </select>
+            </div>
           </div>
+          <div class="field con-floor-other-row" style="${editingFloorIsOther?'':'display:none;'}"><label>Tầng khác</label><input name="floorOther" value="${editingFloorIsOther?esc(editing.floor):''}"></div>
           <div class="formrow3">
             <div class="field"><label>Công nhân buổi sáng</label><input type="number" name="workersAm" min="0" step="1" placeholder="VD: 6" value="${editing?(editing.workersAm!=null?editing.workersAm:editing.workers):''}"></div>
             <div class="field"><label>Công nhân buổi chiều</label><input type="number" name="workersPm" min="0" step="1" placeholder="VD: 5" value="${editing?(editing.workersPm!=null?editing.workersPm:editing.workers):''}"></div>
