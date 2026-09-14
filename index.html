@@ -909,7 +909,7 @@ function applyConFilters(rows){
     (!f.team || r.team===f.team) &&
     (!f.task || r.task===f.task) &&
     (!f.date || r.date===f.date) &&
-    (!f.floor || r.floor===f.floor)
+    (!f.floor || floorDisplayLabel(r.floor)===f.floor)
   );
 }
 
@@ -1015,6 +1015,7 @@ const state = {
   pagination:{},
   adminTab:'accounts',
   mergeTeamMsg:null,
+  conChartFloor:'',
   auditLog:[],
   auditLogStatus:'idle',
   hasSyncedOnce: !API_URL
@@ -2486,24 +2487,28 @@ function floorDisplayLabel(f){
   const s = String(f==null?'':f).trim();
   return /^\d+$/.test(s) ? 'Tầng '+s : s;
 }
+function conChartFloorChange(v){ state.conChartFloor=v; renderThiCong(); }
 function conChart(rows){
   const el = document.getElementById('conChart');
   if(!el) return;
   if(state.charts.con) state.charts.con.destroy();
   const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  // lọc riêng theo tầng cho biểu đồ (độc lập với bộ lọc của bảng danh sách bên dưới)
+  const chartRows = state.conChartFloor ? rows.filter(r=>floorDisplayLabel(r.floor)===state.conChartFloor) : rows;
   // gộp theo cặp (tổ đội, tầng) — mỗi cặp chỉ lấy báo cáo mới nhất để biết tiến độ hiện tại
   // của tổ đó ở tầng đó, thay vì hiện lại từng bản ghi lịch sử riêng lẻ.
   const byKey = {};
-  rows.forEach(r=>{
-    const key = r.team+'|||'+r.floor;
-    if(!byKey[key] || (r.date||'') >= (byKey[key].date||'')) byKey[key] = r;
+  chartRows.forEach(r=>{
+    const floorLabel = floorDisplayLabel(r.floor);
+    const key = r.team+'|||'+floorLabel;
+    if(!byKey[key] || (r.date||'') >= (byKey[key].date||'')) byKey[key] = {...r, floorLabel};
   });
   const combos = Object.values(byKey).sort((a,b)=>
-    String(a.floor).localeCompare(String(b.floor), 'vi', {numeric:true}) || String(a.team).localeCompare(String(b.team), 'vi')
+    a.floorLabel.localeCompare(b.floorLabel, 'vi', {numeric:true}) || String(a.team).localeCompare(String(b.team), 'vi')
   );
   state.charts.con = new Chart(el, {
     type:'bar',
-    data:{ labels: combos.map(r=>`${floorDisplayLabel(r.floor)} - ${r.team}`), datasets:[{ data: combos.map(r=>r.progress), backgroundColor: MODULES.thi_cong.color, borderRadius:6, maxBarThickness:26 }] },
+    data:{ labels: combos.map(r=>`${r.floorLabel} - ${r.team}`), datasets:[{ data: combos.map(r=>r.progress), backgroundColor: MODULES.thi_cong.color, borderRadius:6, maxBarThickness:26 }] },
     options:{
       maintainAspectRatio:false,
       indexAxis:'y',
@@ -2717,7 +2722,7 @@ function renderThiCongBaoCao(allRows){
   let rows = applySearch(allRows, ['team','task','floor','note']);
   rows = applyConFilters(rows);
   const teams = [...new Set(allRows.map(r=>r.team))].sort();
-  const floors = [...new Set(allRows.map(r=>r.floor))].sort();
+  const floors = [...new Set(allRows.map(r=>floorDisplayLabel(r.floor)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
   const hasActiveFilters = Object.values(state.conFilters).some(v=>v);
   const totalWorkers = rows.reduce((a,r)=>a+(r.workers||0),0);
   const floorSummary = floorProgressSummary(rows.length?rows:allRows);
@@ -2797,7 +2802,13 @@ function renderThiCongBaoCao(allRows){
     </div>` : ''}
 
     <div class="card chartbox" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:12px;">Tiến độ theo tổ - tầng</h3>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <h3 style="margin:0;">Tiến độ theo tổ - tầng</h3>
+        <select onchange="conChartFloorChange(this.value)" style="border:1px solid var(--line); background:var(--surface-2); color:var(--ink); padding:7px 10px; border-radius:8px; font-size:12.5px; font-family:inherit;">
+          <option value="">Tất cả tầng</option>
+          ${floors.map(f=>`<option value="${esc(f)}" ${state.conChartFloor===f?'selected':''}>${esc(f)}</option>`).join('')}
+        </select>
+      </div>
       <div class="chart-canvas-wrap"><canvas id="conChart"></canvas></div>
     </div>
 
