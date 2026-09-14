@@ -1690,7 +1690,7 @@ function renderFinance(){
     <div class="card">
       <div class="card-head"><h3>Lịch sử giao dịch</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Ngày</th><th>Loại</th><th>Danh mục</th><th class="num">Số tiền</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Loại</th><th>Danh mục</th><th class="num">Số tiền</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="5">${allRows.length===0?'Chưa có giao dịch nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           rows.map(r=>`
@@ -2015,7 +2015,7 @@ function renderKhoChinh(){
         ${hasActiveFilters?`<button class="link-btn" onclick="khoChinhClearFilters()">Xoá lọc</button>`:''}
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Ngày</th><th>Loại GD</th><th>Vật tư</th><th class="num">Số lượng</th><th>Nhà thầu/tổ đội</th><th>Ghi chú</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Loại GD</th><th>Vật tư</th><th class="num">Số lượng</th><th>Nhà thầu/tổ đội</th><th>Ghi chú</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có giao dịch nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
@@ -2220,7 +2220,7 @@ function renderKhoPhu(){
     <div class="card">
       <div class="card-head"><h3>Lịch sử kho</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Ngày</th><th>Loại GD</th><th>Tên hàng</th><th class="num">Số lượng</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Nhà thầu/tổ đội</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Loại GD</th><th>Tên hàng</th><th class="num">Số lượng</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Nhà thầu/tổ đội</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có giao dịch nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
@@ -2793,7 +2793,7 @@ function renderThiCongBaoCao(allRows){
         ${hasActiveFilters?`<button class="link-btn" onclick="conClearFilters()">Xoá lọc</button>`:''}
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Tổ đội</th><th>Công việc</th><th>Ngày</th><th>Người báo cáo</th><th>Thời tiết</th><th>Tầng</th><th class="num">Công</th><th style="min-width:120px;">Tiến độ</th><th></th></tr></thead>
+        <thead><tr><th>Tổ đội</th><th>Công việc</th><th class="num">Ngày</th><th>Người báo cáo</th><th>Thời tiết</th><th>Tầng</th><th class="num">Công</th><th style="min-width:120px;">Tiến độ</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="9">${allRows.length===0?'Chưa có bản ghi nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
@@ -3061,7 +3061,7 @@ function renderNhanSuCT(){
     <div class="card">
       <div class="card-head"><h3>Danh sách nhân sự</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>SĐT</th><th>Ngày vào làm</th><th class="num">Lương</th><th>Trạng thái</th><th></th></tr></thead>
+        <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>SĐT</th><th class="num">Ngày vào làm</th><th class="num">Lương</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có nhân sự nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           rows.map(r=>`
@@ -3208,7 +3208,7 @@ function renderNhanSuTD(){
     <div class="card">
       <div class="card-head"><h3>Danh sách công nhân</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Họ tên</th><th>Tổ đội</th><th>Vai trò</th><th>SĐT</th><th>Ngày vào tổ</th><th class="num">Đơn giá công</th><th>Trạng thái</th><th></th></tr></thead>
+        <thead><tr><th>Họ tên</th><th>Tổ đội</th><th>Vai trò</th><th>SĐT</th><th class="num">Ngày vào tổ</th><th class="num">Đơn giá công</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody>
           ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có công nhân nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           rows.map(r=>`
