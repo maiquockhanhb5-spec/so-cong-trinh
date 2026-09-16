@@ -560,6 +560,33 @@ function normalizeDate(v){
   if(dmy) return dmy[3]+'-'+dmy[2].padStart(2,'0')+'-'+dmy[1].padStart(2,'0');
   return s;
 }
+/* ô nhập ngày dạng chữ dd/mm/yyyy (thay cho <input type="date"> — định dạng hiển thị
+   phụ thuộc trình duyệt/hệ điều hành, dễ gây nhầm lẫn khi gõ). Lưu trữ nội bộ vẫn
+   dùng ISO yyyy-mm-dd như cũ — chuyển đổi qua lại bằng 2 hàm dưới đây. */
+function isoToDmy(iso){
+  const m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3]+'/'+m[2]+'/'+m[1] : '';
+}
+function isValidDmy(v){
+  const m = String(v||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m) return false;
+  const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
+  if(mo<1||mo>12||d<1) return false;
+  if(y<Number(DATE_MIN.slice(0,4))||y>Number(DATE_MAX.slice(0,4))) return false;
+  return d <= new Date(y, mo, 0).getDate(); // ngày cuối tháng thật (tự tính năm nhuận)
+}
+function onDateMaskInput(el){
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  let out = v;
+  if(v.length>4) out = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if(v.length>2) out = v.slice(0,2)+'/'+v.slice(2);
+  el.value = out;
+  // dùng validity gốc của trình duyệt để báo lỗi ngay khi gõ dở/không hợp lệ — không cần
+  // UI báo lỗi riêng, tự động chặn khi bấm Lưu giống các lỗi chặn khác của trình duyệt.
+  if(out.length===0) el.setCustomValidity('');
+  else if(out.length<10) el.setCustomValidity('Ngày chưa đầy đủ — nhập theo định dạng dd/mm/yyyy.');
+  else el.setCustomValidity(isValidDmy(out) ? '' : 'Ngày không hợp lệ.');
+}
 /* đọc trường không phân biệt hoa/thường của tiêu đề cột trong Sheets
    (VD: cột ghi "fullname" hay "FullName" đều nhận được đúng như "fullName") */
 function pick(row, key){
@@ -954,6 +981,10 @@ const KHO_MATERIALS = [
   { label:'Khác', unit:'' }
 ];
 const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','m','m2','lít','bó'];
+/* giới hạn năm hợp lệ cho mọi ô chọn ngày — chặn lỗi gõ nhầm ra năm vô lý kiểu
+   "275760" (trình duyệt đôi khi cộng dồn số vào ô năm nếu gõ nhanh không đúng nhịp). */
+const DATE_MIN = (new Date().getFullYear()-15)+'-01-01';
+const DATE_MAX = (new Date().getFullYear()+5)+'-12-31';
 const FLOOR_OPTIONS = Array.from({length:45},(_,i)=>'Tầng '+(i+1));
 const WEATHER_OPTIONS = ['Nắng','Nhiều mây','Âm u','Mưa rào','Mưa to'];
 const CHART_PALETTE = ['#3b82f6','#f59e0b','#a855f7','#22c55e','#f43f5e','#14b8a6','#eab308','#6366f1','#ec4899','#84cc16'];
@@ -1326,7 +1357,7 @@ function daysSince(dateStr){
 function toggleEditStartDate(){ state.editingStartDate = !state.editingStartDate; render(); }
 function saveStartDateForm(e){
   e.preventDefault();
-  setProjectStart(e.target.startDate.value);
+  setProjectStart(normalizeDate(e.target.startDate.value));
   state.editingStartDate = false;
   render();
   return false;
@@ -1369,7 +1400,7 @@ function renderHome(){
     counterHtml = `
       <form class="home-counter-form" onsubmit="return saveStartDateForm(event)">
         <label>Ngày khởi công</label>
-        <input type="date" name="startDate" value="${startDate||''}" required>
+        <input type="text" inputmode="numeric" name="startDate" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(startDate)}" required>
         <button class="btn btn-accent" type="submit" style="padding:6px 12px; font-size:12.5px;">Lưu</button>
         <button class="link-btn" type="button" onclick="toggleEditStartDate()">Huỷ</button>
       </form>`;
@@ -1571,7 +1602,7 @@ function financeCreateOrUpdate(e){
     type: f.type.value,
     category: f.category.value.trim(),
     amount: parseMoney(f.amount.value),
-    date: f.date.value,
+    date: normalizeDate(f.date.value),
     note: f.note.value.trim()
   };
   if(state.edit.tai_chinh){
@@ -1686,7 +1717,7 @@ function renderFinance(){
                 <option value="chi" ${editing&&editing.type==='chi'?'selected':''}>Chi</option>
               </select>
             </div>
-            <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="field"><label>Danh mục</label><input name="category" required placeholder="VD: Mua xi măng, Tạm ứng đợt 2..." value="${editing?esc(editing.category):''}"></div>
           <div class="formrow2">
@@ -1806,7 +1837,7 @@ function kvtChinhCreateOrUpdate(e){
   const unit = unitSel === 'Khác' ? f.unitOther.value.trim() : unitSel;
   const direction = f.direction.value;
   const payload = {
-    date:f.date.value, direction, material, unit,
+    date:normalizeDate(f.date.value), direction, material, unit,
     quantity: Math.max(0, Number(f.quantity.value)||0),
     team: direction==='xuat' ? f.team.value.trim() : '',
     note: f.note.value.trim(),
@@ -1946,7 +1977,7 @@ function renderKhoChinh(){
                 <option value="xuat" ${editing&&editing.direction==='xuat'?'selected':''}>Xuất kho</option>
               </select>
             </div>
-            <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="formrow2">
             <div class="field"><label>Vật tư</label>
@@ -2018,8 +2049,8 @@ function renderKhoChinh(){
           <button class="${kf.period==='tuan'?'active':''}" onclick="khoChinhPeriodChange('tuan')">Tuần</button>
           <button class="${kf.period==='thang'?'active':''}" onclick="khoChinhPeriodChange('thang')">Tháng</button>
         </div>
-        <input type="date" value="${kf.from}" onchange="khoChinhRangeChange('from', this.value)" title="Từ ngày">
-        <input type="date" value="${kf.to}" onchange="khoChinhRangeChange('to', this.value)" title="Đến ngày">
+        <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(kf.from)}" onchange="khoChinhRangeChange('from', normalizeDate(this.value))" title="Từ ngày">
+        <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(kf.to)}" onchange="khoChinhRangeChange('to', normalizeDate(this.value))" title="Đến ngày">
         <select onchange="khoChinhFilterChange('material', this.value)">
           <option value="">Tất cả vật tư</option>
           ${filterMaterials.map(m=>`<option value="${esc(m)}" ${kf.material===m?'selected':''}>${esc(m)}</option>`).join('')}
@@ -2110,7 +2141,7 @@ function kvtPhuCreateOrUpdate(e){
   const rows = load(LS.vatTuPhu, []);
   const direction = f.direction.value;
   const payload = {
-    date:f.date.value, direction,
+    date:normalizeDate(f.date.value), direction,
     itemName: f.itemName.value.trim(),
     unit: f.unit.value.trim(),
     quantity: Math.max(0, Number(f.quantity.value)||0),
@@ -2185,7 +2216,7 @@ function renderKhoPhu(){
                 <option value="xuat" ${editing&&editing.direction==='xuat'?'selected':''}>Xuất kho</option>
               </select>
             </div>
-            <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="formrow2">
             <div class="field"><label>Tên hàng</label><input name="itemName" required value="${editing?esc(editing.itemName):''}"></div>
@@ -2353,8 +2384,8 @@ function renderKhoDashboard(){
         <button class="${df.period==='thang'?'active':''}" onclick="khoDashPeriodChange('thang')">Theo tháng</button>
       </div>
       <div class="tq-range">
-        Từ <input type="date" value="${df.from}" onchange="khoDashRangeChange('from', this.value)">
-        đến <input type="date" value="${df.to}" onchange="khoDashRangeChange('to', this.value)">
+        Từ <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(df.from)}" onchange="khoDashRangeChange('from', normalizeDate(this.value))">
+        đến <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(df.to)}" onchange="khoDashRangeChange('to', normalizeDate(this.value))">
       </div>
       <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
         <span style="font-size:12.5px; color:var(--muted);">Vật tư:</span>
@@ -2424,7 +2455,7 @@ function conCreateOrUpdate(e){
   const teamSel = f.team.value;
   const team = teamSel==='Khác' ? f.teamOther.value.trim() : teamSel;
   const payload = {
-    team, task:f.task.value, date:f.date.value, floor,
+    team, task:f.task.value, date:normalizeDate(f.date.value), floor,
     workersAm, workersPm, workers: (workersAm+workersPm)/2,
     progress: Math.max(0,Math.min(100, Number(f.progress.value)||0)), note:f.note.value.trim(),
     weather: 'Sáng: '+f.weatherAm.value+' / Chiều: '+f.weatherPm.value,
@@ -2671,8 +2702,8 @@ function renderThiCongTongQuan(allRows){
         <button class="${state.tqPeriod==='thang'?'active':''}" onclick="conTqPeriodChange('thang')">Theo tháng</button>
       </div>
       <div class="tq-range">
-        Từ <input type="date" value="${state.tqFrom}" onchange="conTqRangeChange('tqFrom', this.value)">
-        đến <input type="date" value="${state.tqTo}" onchange="conTqRangeChange('tqTo', this.value)">
+        Từ <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(state.tqFrom)}" onchange="conTqRangeChange('tqFrom', normalizeDate(this.value))">
+        đến <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(state.tqTo)}" onchange="conTqRangeChange('tqTo', normalizeDate(this.value))">
       </div>
       ${locHtml}
     </div>
@@ -2770,7 +2801,7 @@ function renderThiCongBaoCao(allRows){
           </div>
           <div class="field con-team-other-row" style="${editingTeamIsOther?'':'display:none;'}"><label>Tên tổ mới</label><input name="teamOther" placeholder="VD: Tổ 1 - Anh Bình" value="${editingTeamIsOther&&editing?esc(editing.team):''}"></div>
           <div class="formrow2">
-            <div class="field"><label>Ngày</label><input type="date" name="date" required value="${editing?editing.date:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
             <div class="field"><label>Tầng</label>
               <select name="floor" onchange="toggleConFloorOther(this)">
                 ${FLOOR_OPTIONS.map(fl=>`<option value="${esc(fl)}" ${editing&&editing.floor===fl?'selected':''}>${esc(fl)}</option>`).join('')}
@@ -2853,7 +2884,7 @@ function renderThiCongBaoCao(allRows){
           <option value="">Tất cả công việc</option>
           ${TASK_OPTIONS.map(t=>`<option value="${t}" ${state.conFilters.task===t?'selected':''}>${t}</option>`).join('')}
         </select>
-        <input type="date" value="${state.conFilters.date}" onchange="conFilterChange('date', this.value)">
+        <input type="text" inputmode="numeric" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${isoToDmy(state.conFilters.date)}" onchange="conFilterChange('date', normalizeDate(this.value))">
         <select onchange="conFilterChange('floor', this.value)">
           <option value="">Tất cả tầng</option>
           ${floors.map(f=>`<option value="${esc(f)}" ${state.conFilters.floor===f?'selected':''}>${esc(f)}</option>`).join('')}
@@ -3067,7 +3098,7 @@ function staffCtCreateOrUpdate(e){
   const rows = load(LS.staffCt, []);
   const payload = {
     name:f.name.value.trim(), position:f.position.value.trim(), phone:f.phone.value.trim(),
-    startDate:f.startDate.value, salary:parseMoney(f.salary.value), status:f.status.value, note:f.note.value.trim()
+    startDate:normalizeDate(f.startDate.value), salary:parseMoney(f.salary.value), status:f.status.value, note:f.note.value.trim()
   };
   if(state.edit.nhansu_ct){
     payload.id = state.edit.nhansu_ct;
@@ -3144,7 +3175,7 @@ function renderNhanSuCT(){
           </div>
           <div class="formrow2">
             <div class="field"><label>Số điện thoại</label><input name="phone" value="${editing?esc(editing.phone):''}"></div>
-            <div class="field"><label>Ngày vào làm</label><input type="date" name="startDate" value="${editing?editing.startDate:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày vào làm</label><input type="text" inputmode="numeric" name="startDate" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.startDate):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="formrow2">
             <div class="field"><label>Lương (đ/tháng)</label><input type="text" inputmode="numeric" name="salary" oninput="onMoneyInput(this)" value="${editing?formatThousands(editing.salary):''}"></div>
@@ -3216,7 +3247,7 @@ function staffTdCreateOrUpdate(e){
   const team = teamSel==='Khác' ? f.teamOther.value.trim() : teamSel;
   const payload = {
     name:f.name.value.trim(), team, role:f.role.value, phone:f.phone.value.trim(),
-    startDate:f.startDate.value, wage:parseMoney(f.wage.value), status:f.status.value, note:f.note.value.trim()
+    startDate:normalizeDate(f.startDate.value), wage:parseMoney(f.wage.value), status:f.status.value, note:f.note.value.trim()
   };
   if(state.edit.nhansu_td){
     payload.id = state.edit.nhansu_td;
@@ -3308,7 +3339,7 @@ function renderNhanSuTD(){
             <div class="field"><label>Số điện thoại</label><input name="phone" value="${editing?esc(editing.phone):''}"></div>
           </div>
           <div class="formrow2">
-            <div class="field"><label>Ngày vào tổ</label><input type="date" name="startDate" value="${editing?editing.startDate:new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>Ngày vào tổ</label><input type="text" inputmode="numeric" name="startDate" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.startDate):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
             <div class="field"><label>Đơn giá công (đ/ngày)</label><input type="text" inputmode="numeric" name="wage" oninput="onMoneyInput(this)" value="${editing?formatThousands(editing.wage):''}"></div>
           </div>
           <div class="field"><label>Trạng thái</label>
