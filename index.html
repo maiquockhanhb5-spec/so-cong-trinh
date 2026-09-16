@@ -556,15 +556,17 @@ function isoToDmy(iso){
   const m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? m[3]+'/'+m[2]+'/'+m[1] : '';
 }
-function isValidDmy(v){
+function isValidDmy(v, minYear, maxYear){
   const m = String(v||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if(!m) return false;
   const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
   if(mo<1||mo>12||d<1) return false;
-  if(y<Number(DATE_MIN.slice(0,4))||y>Number(DATE_MAX.slice(0,4))) return false;
+  const minY = minYear!=null ? minYear : Number(DATE_MIN.slice(0,4));
+  const maxY = maxYear!=null ? maxYear : Number(DATE_MAX.slice(0,4));
+  if(y<minY||y>maxY) return false;
   return d <= new Date(y, mo, 0).getDate(); // ngày cuối tháng thật (tự tính năm nhuận)
 }
-function onDateMaskInput(el){
+function onDateMaskInput(el, minYear, maxYear){
   let v = el.value.replace(/\D/g,'').slice(0,8);
   let out = v;
   if(v.length>4) out = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
@@ -574,7 +576,7 @@ function onDateMaskInput(el){
   // UI báo lỗi riêng, tự động chặn khi bấm Lưu giống các lỗi chặn khác của trình duyệt.
   if(out.length===0) el.setCustomValidity('');
   else if(out.length<10) el.setCustomValidity('Ngày chưa đầy đủ — nhập theo định dạng dd/mm/yyyy.');
-  else el.setCustomValidity(isValidDmy(out) ? '' : 'Ngày không hợp lệ.');
+  else el.setCustomValidity(isValidDmy(out, minYear, maxYear) ? '' : 'Ngày không hợp lệ.');
 }
 /* đọc trường không phân biệt hoa/thường của tiêu đề cột trong Sheets
    (VD: cột ghi "fullname" hay "FullName" đều nhận được đúng như "fullName") */
@@ -632,7 +634,8 @@ function normalizeStaffCt(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, name:String(pick(r,'name')||''), position:String(pick(r,'position')||''),
     phone:String(pick(r,'phone')||''), startDate:normalizeDate(pick(r,'startDate')), salary:Number(pick(r,'salary'))||0,
-    status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||'')
+    status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||''),
+    dob:normalizeDate(pick(r,'dob')), project:String(pick(r,'project')||'')
   }));
 }
 function normalizeStaffTd(rows){
@@ -974,6 +977,8 @@ const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','
    "275760" (trình duyệt đôi khi cộng dồn số vào ô năm nếu gõ nhanh không đúng nhịp). */
 const DATE_MIN = (new Date().getFullYear()-15)+'-01-01';
 const DATE_MAX = (new Date().getFullYear()+5)+'-12-31';
+const DOB_MIN_YEAR = new Date().getFullYear()-100;
+const DOB_MAX_YEAR = new Date().getFullYear();
 const FLOOR_OPTIONS = Array.from({length:45},(_,i)=>'Tầng '+(i+1));
 const WEATHER_OPTIONS = ['Nắng','Nhiều mây','Âm u','Mưa rào','Mưa to'];
 const CHART_PALETTE = ['#3b82f6','#f59e0b','#a855f7','#22c55e','#f43f5e','#14b8a6','#eab308','#6366f1','#ec4899','#84cc16'];
@@ -3094,7 +3099,8 @@ function staffCtCreateOrUpdate(e){
   const rows = load(LS.staffCt, []);
   const payload = {
     name:f.name.value.trim(), position:f.position.value.trim(), phone:f.phone.value.trim(),
-    startDate:normalizeDate(f.startDate.value), salary:parseMoney(f.salary.value), status:f.status.value, note:f.note.value.trim()
+    startDate:normalizeDate(f.startDate.value), salary:parseMoney(f.salary.value), status:f.status.value, note:f.note.value.trim(),
+    dob:normalizeDate(f.dob.value), project:f.project.value.trim()
   };
   if(state.edit.nhansu_ct){
     payload.id = state.edit.nhansu_ct;
@@ -3135,7 +3141,7 @@ function staffCtChart(rows){
 }
 function renderNhanSuCT(){
   const allRows = load(LS.staffCt, []).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  const rows = applySearch(allRows, ['name','position','phone','note']);
+  const rows = applySearch(allRows, ['name','position','phone','note','project']);
   const activeCount = allRows.filter(r=>r.status==='dang_lam').length;
   const totalSalary = allRows.filter(r=>r.status==='dang_lam').reduce((a,r)=>a+r.salary,0);
   const editing = state.edit.nhansu_ct ? allRows.find(r=>r.id===state.edit.nhansu_ct) : null;
@@ -3174,6 +3180,10 @@ function renderNhanSuCT(){
             <div class="field"><label>Ngày vào làm</label><input type="text" inputmode="numeric" name="startDate" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.startDate):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="formrow2">
+            <div class="field"><label>Ngày tháng năm sinh</label><input type="text" inputmode="numeric" name="dob" placeholder="dd/mm/yyyy" maxlength="10" oninput="onDateMaskInput(this, DOB_MIN_YEAR, DOB_MAX_YEAR)" value="${editing?isoToDmy(editing.dob):''}"></div>
+            <div class="field"><label>Dự án</label><input name="project" placeholder="VD: Chung cư ABC" value="${editing?esc(editing.project):''}"></div>
+          </div>
+          <div class="formrow2">
             <div class="field"><label>Lương (đ/tháng)</label><input type="text" inputmode="numeric" name="salary" oninput="onMoneyInput(this)" value="${editing?formatThousands(editing.salary):''}"></div>
             <div class="field"><label>Trạng thái</label>
               <select name="status">
@@ -3200,14 +3210,16 @@ function renderNhanSuCT(){
     <div class="card">
       <div class="card-head"><h3>Danh sách nhân sự</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>SĐT</th><th class="num">Ngày vào làm</th><th class="num">Lương</th><th>Trạng thái</th><th></th></tr></thead>
+        <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>SĐT</th><th class="num">Ngày sinh</th><th>Dự án</th><th class="num">Ngày vào làm</th><th class="num">Lương</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody>
-          ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có nhân sự nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          ${rows.length===0?`<tr class="empty-row"><td colspan="9">${allRows.length===0?'Chưa có nhân sự nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           rows.map(r=>`
             <tr>
               <td><b>${esc(r.name)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}</td>
               <td>${esc(r.position)||'—'}</td>
               <td>${esc(r.phone)||'—'}</td>
+              <td class="num" style="white-space:nowrap;">${vdate(r.dob)}</td>
+              <td>${esc(r.project)||'—'}</td>
               <td class="num" style="white-space:nowrap;">${vdate(r.startDate)}</td>
               <td class="num">${vnd(r.salary)}</td>
               <td><span class="chip ${r.status==='dang_lam'?'chip-thu':'chip-neutral'}">${STAFF_STATUS_LABEL[r.status]}</span></td>
