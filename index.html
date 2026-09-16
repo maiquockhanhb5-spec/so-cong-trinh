@@ -2706,7 +2706,9 @@ function renderThiCongTongQuan(allRows){
 function floorProgressSummary(rows){
   const byFloor = {};
   rows.forEach(r=>{
-    const key = r.floor || '(Chưa gán tầng)';
+    // gộp theo tên tầng đã chuẩn hoá — tránh tách "14" (số) và "Tầng 14" (chữ, do dữ liệu
+    // cũ nhập tự do trước khi có ô chọn tầng) thành 2 dòng riêng dù cùng là 1 tầng.
+    const key = floorDisplayLabel(r.floor) || '(Chưa gán tầng)';
     if(!byFloor[key]) byFloor[key] = { floor:key, workers:0, dates:new Set() };
     byFloor[key].workers += (r.workers||0);
     if(r.date) byFloor[key].dates.add(r.date);
@@ -2864,7 +2866,7 @@ function renderThiCongBaoCao(allRows){
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
               <td style="font-size:12.5px;">${r.reportedBy?esc(r.reportedBy):'—'}</td>
               <td style="font-size:12px; color:var(--muted); white-space:nowrap;">${r.weather?esc(r.weather):'—'}</td>
-              <td>${esc(r.floor)}</td>
+              <td>${esc(floorDisplayLabel(r.floor))}</td>
               <td class="num">
                 ${r.workers?formatCong(r.workers)+' công':'—'}
                 ${(r.workersAm!=null||r.workersPm!=null)?`<div style="color:var(--muted); font-size:11px; margin-top:2px;">Sáng: ${r.workersAm!=null?r.workersAm:'—'} · Chiều: ${r.workersPm!=null?r.workersPm:'—'}</div>`:''}
