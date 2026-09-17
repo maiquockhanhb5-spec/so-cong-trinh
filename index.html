@@ -1954,6 +1954,15 @@ function renderKhoChinh(){
   const kf = state.khoChinhFilters;
   const hasActiveFilters = !!(kf.period || kf.from || kf.to || kf.material || kf.direction || kf.team);
   const stock = khoStockSummary(allRows, 'material');
+  // Pallet đi kèm gạch không phải giao dịch "Ballet" riêng — cộng dồn vào tồn kho
+  // "Ballet" (đã nhập) để phản ánh đúng số pallet thực tế đã về công trình.
+  const palletNhap = allRows.filter(r=>r.direction==='nhap').reduce((a,r)=>a+(r.pallets||0),0);
+  if(palletNhap>0){
+    let balletRow = stock.find(s=>s.name==='Ballet');
+    if(!balletRow){ balletRow = {name:'Ballet', unit:'cái', nhap:0, xuat:0, ton:0}; stock.push(balletRow); }
+    balletRow.nhap += palletNhap;
+    balletRow.ton = balletRow.nhap - balletRow.xuat;
+  }
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
   const editingIsOther = !!(editing && !KHO_MATERIALS.some(m=>m.label===editing.material));
   const editingUnitIsOther = !!(editing && !UNIT_OPTIONS.includes(editing.unit));
