@@ -608,6 +608,7 @@ function normalizeVatTuChinh(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), direction:pick(r,'direction')==='xuat'?'xuat':'nhap',
     material:String(pick(r,'material')||''), unit:String(pick(r,'unit')||''), quantity:Number(pick(r,'quantity'))||0,
+    pallets:Number(pick(r,'pallets'))||0,
     team:String(pick(r,'team')||''), note:String(pick(r,'note')||''),
     photos: pick(r,'photos') ? String(pick(r,'photos')).split(',').map(s=>s.trim()).filter(Boolean) : []
   }));
@@ -973,6 +974,7 @@ const KHO_MATERIALS = [
   { label:'Khác', unit:'' }
 ];
 const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','m','m2','lít','bó'];
+function isBrickMaterial(label){ return /gạch/i.test(String(label||'')); }
 /* giới hạn năm hợp lệ cho mọi ô chọn ngày — chặn lỗi gõ nhầm ra năm vô lý kiểu
    "275760" (trình duyệt đôi khi cộng dồn số vào ô năm nếu gõ nhanh không đúng nhịp). */
 const DATE_MIN = (new Date().getFullYear()-15)+'-01-01';
@@ -1779,10 +1781,18 @@ function toggleKhoDirFields(sel){
   const teamRow = form.querySelector('.kho-team-row');
   if(teamRow) teamRow.style.display = sel.value==='xuat' ? '' : 'none';
 }
+function toggleKhoPalletOther(input){
+  const form = input.closest('form');
+  const palletRow = form.querySelector('.kho-pallet-row');
+  if(palletRow) palletRow.style.display = isBrickMaterial(input.value) ? '' : 'none';
+}
 function toggleKhoMaterialOther(sel){
   const form = sel.closest('form');
   const otherRow = form.querySelector('.kho-other-row');
   if(otherRow) otherRow.style.display = sel.value==='Khác' ? '' : 'none';
+  const palletRow = form.querySelector('.kho-pallet-row');
+  const otherInput = form.querySelector('input[name="materialOther"]');
+  if(palletRow) palletRow.style.display = isBrickMaterial(sel.value==='Khác' ? (otherInput?otherInput.value:'') : sel.value) ? '' : 'none';
   // chọn vật tư có sẵn -> tự điền đơn vị mặc định của vật tư đó, nhưng người dùng vẫn có thể đổi lại sau
   const defaultUnit = (KHO_MATERIALS.find(m=>m.label===sel.value)||{}).unit;
   const unitSel = form.querySelector('select[name="unit"]');
@@ -1837,9 +1847,11 @@ function kvtChinhCreateOrUpdate(e){
   const unitSel = f.unit.value;
   const unit = unitSel === 'Khác' ? f.unitOther.value.trim() : unitSel;
   const direction = f.direction.value;
+  const isBrick = isBrickMaterial(material);
   const payload = {
     date:normalizeDate(f.date.value), direction, material, unit,
     quantity: Math.max(0, Number(f.quantity.value)||0),
+    pallets: isBrick ? Math.max(0, Number(f.pallets.value)||0) : 0,
     team: direction==='xuat' ? f.team.value.trim() : '',
     note: f.note.value.trim(),
     photos: state.khoPhotoDraft.slice()
@@ -1986,10 +1998,13 @@ function renderKhoChinh(){
                 ${KHO_MATERIALS.map(m=>`<option value="${esc(m.label)}" ${(editing?(editingIsOther?m.label==='Khác':editing.material===m.label):false)?'selected':''}>${esc(m.label)}</option>`).join('')}
               </select>
             </div>
-            <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="0.01" required value="${editing?editing.quantity:''}"></div>
+            <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="0.01" required autocomplete="off" value="${editing?editing.quantity:''}"></div>
           </div>
           <div class="field kho-other-row" style="${editingIsOther?'':'display:none;'}">
-            <label>Tên vật tư khác</label><input name="materialOther" value="${editingIsOther?esc(editing.material):''}">
+            <label>Tên vật tư khác</label><input name="materialOther" autocomplete="off" oninput="toggleKhoPalletOther(this)" value="${editingIsOther?esc(editing.material):''}">
+          </div>
+          <div class="field kho-pallet-row" style="${editing&&isBrickMaterial(editing.material)?'':'display:none;'}">
+            <label>Số lượng pallet (cái)</label><input type="number" name="pallets" min="0" step="1" autocomplete="off" value="${editing&&editing.pallets?editing.pallets:''}">
           </div>
           <div class="formrow2">
             <div class="field"><label>Đơn vị tính</label>
@@ -2068,9 +2083,9 @@ function renderKhoChinh(){
         ${hasActiveFilters?`<button class="link-btn" onclick="khoChinhClearFilters()">Xoá lọc</button>`:''}
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="num">Ngày</th><th>Loại GD</th><th>Vật tư</th><th class="num">Số lượng</th><th>Nhà thầu/tổ đội</th><th>Ghi chú</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Loại GD</th><th>Vật tư</th><th class="num">Số lượng</th><th class="num">Pallet</th><th>Nhà thầu/tổ đội</th><th>Ghi chú</th><th></th></tr></thead>
         <tbody>
-          ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có giao dịch nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có giao dịch nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
             <tr>
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
@@ -2081,6 +2096,7 @@ function renderKhoChinh(){
                   ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
                 </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
+              <td class="num">${r.pallets?r.pallets.toLocaleString('vi-VN')+' cái':'—'}</td>
               <td>${esc(r.team)||'—'}</td>
               <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}</td>
               <td>${canEdit('kho')?`<div class="row-actions">
