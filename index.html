@@ -697,9 +697,9 @@ function seed(){
       {id:3, date:'2026-08-25', direction:'xuat', material:'Cát xây', unit:'m3', quantity:8, team:'Tổ 1 - Anh Bình', note:''},
       {id:4, date:'2026-09-01', direction:'nhap', material:'Gạch XMCL đặc 200x90x60', unit:'viên', quantity:5000, team:'', note:''},
       {id:5, date:'2026-09-03', direction:'xuat', material:'Gạch XMCL đặc 200x90x60', unit:'viên', quantity:2000, team:'Tổ 2 - Anh Long', note:''},
-      {id:6, date:'2026-09-05', direction:'nhap', material:'Ballet', unit:'cái', quantity:30, team:'', note:''},
-      {id:7, date:'2026-09-06', direction:'nhap', material:'Trả ballet', unit:'cái', quantity:10, team:'', note:''},
-      {id:8, date:'2026-09-07', direction:'xuat', material:'Trả ballet', unit:'cái', quantity:10, team:'', note:'Trả NCC'}
+      {id:6, date:'2026-09-05', direction:'nhap', material:'Pallet', unit:'cái', quantity:30, team:'', note:''},
+      {id:7, date:'2026-09-06', direction:'nhap', material:'Pallet', unit:'cái', quantity:10, team:'', note:''},
+      {id:8, date:'2026-09-07', direction:'xuat', material:'Pallet', unit:'cái', quantity:10, team:'', note:'Trả NCC'}
     ]);
   }
   if(!localStorage.getItem(LS.vatTuPhu)){
@@ -969,8 +969,7 @@ const KHO_MATERIALS = [
   { label:'Gạch XMCL đặc 170x150x60', unit:'viên' },
   { label:'Gạch XMCL rỗng 390x150x130', unit:'viên' },
   { label:'Gạch XMCL rỗng 390x90x130', unit:'viên' },
-  { label:'Ballet', unit:'cái' },
-  { label:'Trả ballet', unit:'cái' },
+  { label:'Pallet', unit:'cái' },
   { label:'Khác', unit:'' }
 ];
 const UNIT_OPTIONS = ['m3','tấn','kg','viên','cái','bao','cuộn','thùng','m','m2','lít','bó'];
@@ -1954,14 +1953,24 @@ function renderKhoChinh(){
   const kf = state.khoChinhFilters;
   const hasActiveFilters = !!(kf.period || kf.from || kf.to || kf.material || kf.direction || kf.team);
   const stock = khoStockSummary(allRows, 'material');
-  // Pallet đi kèm gạch không phải giao dịch "Ballet" riêng — cộng dồn vào tồn kho
-  // "Ballet" (đã nhập) để phản ánh đúng số pallet thực tế đã về công trình.
-  const palletNhap = allRows.filter(r=>r.direction==='nhap').reduce((a,r)=>a+(r.pallets||0),0);
-  if(palletNhap>0){
-    let balletRow = stock.find(s=>s.name==='Ballet');
-    if(!balletRow){ balletRow = {name:'Ballet', unit:'cái', nhap:0, xuat:0, ton:0}; stock.push(balletRow); }
-    balletRow.nhap += palletNhap;
-    balletRow.ton = balletRow.nhap - balletRow.xuat;
+  // gắn thêm số pallet đã nhập/xuất theo từng loại gạch ngay trên dòng vật tư đó
+  const palletByMaterial = {};
+  allRows.forEach(r=>{
+    if(!r.pallets) return;
+    if(!palletByMaterial[r.material]) palletByMaterial[r.material] = {nhap:0, xuat:0};
+    if(r.direction==='xuat') palletByMaterial[r.material].xuat += r.pallets;
+    else palletByMaterial[r.material].nhap += r.pallets;
+  });
+  stock.forEach(s=>{ if(palletByMaterial[s.name]) s.pallets = palletByMaterial[s.name]; });
+  // pallet đi kèm gạch cũng là pallet thật trên công trình — gộp chung vào tồn kho
+  // "Pallet" duy nhất (cùng loại vật tư với pallet nhận/trả riêng lẻ), không tách rời.
+  const palletTotal = Object.values(palletByMaterial).reduce((a,p)=>({nhap:a.nhap+p.nhap, xuat:a.xuat+p.xuat}), {nhap:0, xuat:0});
+  if(palletTotal.nhap || palletTotal.xuat){
+    let palletRow = stock.find(s=>s.name==='Pallet');
+    if(!palletRow){ palletRow = {name:'Pallet', unit:'cái', nhap:0, xuat:0, ton:0}; stock.push(palletRow); }
+    palletRow.nhap += palletTotal.nhap;
+    palletRow.xuat += palletTotal.xuat;
+    palletRow.ton = palletRow.nhap - palletRow.xuat;
   }
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
   const editingIsOther = !!(editing && !KHO_MATERIALS.some(m=>m.label===editing.material));
@@ -2058,8 +2067,8 @@ function renderKhoChinh(){
           stock.map(m=>`
             <tr>
               <td><b>${esc(m.name)}</b>${m.ton<10?` <span class="chip chip-danger">Sắp hết</span>`:''}</td>
-              <td class="num">${m.nhap.toLocaleString('vi-VN')} ${esc(m.unit)}</td>
-              <td class="num">${m.xuat.toLocaleString('vi-VN')} ${esc(m.unit)}</td>
+              <td class="num">${m.nhap.toLocaleString('vi-VN')} ${esc(m.unit)}${m.pallets&&m.pallets.nhap?` <span style="color:var(--muted); font-size:11.5px;">(${m.pallets.nhap.toLocaleString('vi-VN')} pallet)</span>`:''}</td>
+              <td class="num">${m.xuat.toLocaleString('vi-VN')} ${esc(m.unit)}${m.pallets&&m.pallets.xuat?` <span style="color:var(--muted); font-size:11.5px;">(${m.pallets.xuat.toLocaleString('vi-VN')} pallet)</span>`:''}</td>
               <td class="num"><b>${m.ton.toLocaleString('vi-VN')} ${esc(m.unit)}</b></td>
             </tr>`).join('')}
         </tbody>
