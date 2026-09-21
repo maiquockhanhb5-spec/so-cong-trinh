@@ -440,7 +440,8 @@ const LS = {
   users:'sct_users', session:'sct_session', finance:'sct_finance',
   materials:'sct_materials', construction:'sct_construction',
   staffCt:'sct_staff_ct', staffTd:'sct_staff_td', settings:'sct_settings',
-  vatTuChinh:'sct_vattu_chinh', vatTuPhu:'sct_vattu_phu'
+  vatTuChinh:'sct_vattu_chinh', vatTuPhu:'sct_vattu_phu',
+  conKhauTru:'sct_con_khautru', conPhat:'sct_con_phat'
 };
 function load(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -646,6 +647,22 @@ function normalizeStaffTd(rows){
     status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||'')
   }));
 }
+function splitPhotos(v){ return v ? String(v).split(',').map(s=>s.trim()).filter(Boolean) : []; }
+function normalizeKhauTru(rows){
+  return rows.map(r => ({
+    id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), team:String(pick(r,'team')||''),
+    targetTeam:String(pick(r,'targetTeam')||''),
+    days:Number(pick(r,'days'))||0, rate:Number(pick(r,'rate'))||0, amount:Number(pick(r,'amount'))||0,
+    note:String(pick(r,'note')||''), photos:splitPhotos(pick(r,'photos'))
+  }));
+}
+function normalizePhat(rows){
+  return rows.map(r => ({
+    id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), team:String(pick(r,'team')||''),
+    quantity:Number(pick(r,'quantity'))||0,
+    amount:Number(pick(r,'amount'))||0, note:String(pick(r,'note')||''), photos:splitPhotos(pick(r,'photos'))
+  }));
+}
 async function syncAllFromServer(){
   if(!API_URL) return;
   setSyncStatus('syncing');
@@ -659,6 +676,8 @@ async function syncAllFromServer(){
     if(data.staffTd) save(LS.staffTd, normalizeStaffTd(data.staffTd));
     if(data.vatTuChinh) save(LS.vatTuChinh, normalizeVatTuChinh(data.vatTuChinh));
     if(data.vatTuPhu) save(LS.vatTuPhu, normalizeVatTuPhu(data.vatTuPhu));
+    if(data.congKhauTru) save(LS.conKhauTru, normalizeKhauTru(data.congKhauTru));
+    if(data.congPhat) save(LS.conPhat, normalizePhat(data.congPhat));
     setSyncStatus('online');
     state.hasSyncedOnce = true;
     render();
@@ -861,7 +880,7 @@ function renderKhoPhotoGrid(){
   if(err) err.outerHTML = state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>';
 }
 
-const LIGHTBOX_SOURCES = { construction:'construction', vatTuChinh:'vatTuChinh', vatTuPhu:'vatTuPhu' };
+const LIGHTBOX_SOURCES = { construction:'construction', vatTuChinh:'vatTuChinh', vatTuPhu:'vatTuPhu', conKhauTru:'conKhauTru', conPhat:'conPhat' };
 function openLightbox(source, recordId, idx){
   const row = load(LS[LIGHTBOX_SOURCES[source]||'construction'], []).find(r=>r.id===recordId);
   if(!row || !row.photos || !row.photos[idx]) return;
@@ -877,7 +896,12 @@ function renderLightbox(){
     </div>` : '';
 }
 
-function conTabSwitch(tab){ state.thiCongTab=tab; render(); playPageAnim(); }
+function conTabSwitch(tab){
+  state.thiCongTab=tab;
+  state.formOpen.con_kt=false; state.formOpen.con_phat=false; state.edit.con_kt=null; state.edit.con_phat=null;
+  state.err.khauTru=null; state.err.phat=null; state.khauTruPhotoDraft=[]; state.phatPhotoDraft=[];
+  render(); playPageAnim();
+}
 function khoTabSwitch(tab){ state.khoTab=tab; state.formOpen.kho=false; state.edit.kho=null; render(); playPageAnim(); }
 
 function khoChinhPeriodChange(period){
@@ -1009,7 +1033,9 @@ const CHEVRON_LEFT_ICON = '<path d="m15 18-6-6 6-6"/>';
 function getKnownTeams(){
   const fromCon = load(LS.construction, []).map(r=>r.team);
   const fromStaff = load(LS.staffTd, []).map(r=>r.team);
-  return [...new Set([...fromCon, ...fromStaff])].filter(Boolean).sort();
+  const fromKt = load(LS.conKhauTru, []).flatMap(r=>[r.team, r.targetTeam]);
+  const fromPhat = load(LS.conPhat, []).map(r=>r.team);
+  return [...new Set([...fromCon, ...fromStaff, ...fromKt, ...fromPhat])].filter(Boolean).sort();
 }
 function parseModules(str){
   return String(str||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -1029,14 +1055,16 @@ const state = {
   view:'home',
   err:{},
   confirmId:null,
-  edit:{ tai_chinh:null, kho:null, thi_cong:null, nhansu_ct:null, nhansu_td:null },
-  formOpen:{ tai_chinh:false, kho:false, thi_cong:false, nhansu_ct:false, nhansu_td:false },
+  edit:{ tai_chinh:null, kho:null, thi_cong:null, nhansu_ct:null, nhansu_td:null, con_kt:null, con_phat:null },
+  formOpen:{ tai_chinh:false, kho:false, thi_cong:false, nhansu_ct:false, nhansu_td:false, con_kt:false, con_phat:false },
   search:'',
   notifOpen:false,
   charts:{ kpis:[] },
   conFilters:{ team:'', task:'', date:'', floor:'' },
   conPhotoDraft:[],
   khoPhotoDraft:[],
+  khauTruPhotoDraft:[],
+  phatPhotoDraft:[],
   lightboxSrc:null,
   syncStatus:'local',
   editingStartDate:false,
@@ -1078,6 +1106,8 @@ function toggleForm(key){
   state.edit[key]=null;
   if(key==='thi_cong' && !wasOpen){ state.conPhotoDraft=[]; }
   if(key==='kho' && !wasOpen){ state.khoPhotoDraft=[]; state.err.kho=null; }
+  if(key==='con_kt' && !wasOpen){ state.khauTruPhotoDraft=[]; state.err.khauTru=null; }
+  if(key==='con_phat' && !wasOpen){ state.phatPhotoDraft=[]; state.err.phat=null; }
   render();
 }
 
@@ -1140,20 +1170,27 @@ function renderTopbarAction(){
   const cfg = {
     tai_chinh:{label:'+ Thêm giao dịch'},
     kho:{label: state.khoTab==='phu' ? '+ Thêm vật tư phụ' : '+ Thêm vật tư chính'},
-    thi_cong:{label:'+ Thêm bản ghi'},
+    thi_cong:{label: state.thiCongTab==='khautru' ? '+ Thêm công nhật khấu trừ' : state.thiCongTab==='phat' ? '+ Thêm phạt thi công' : '+ Thêm bản ghi'},
     nhansu_ct:{label:'+ Thêm nhân sự'},
     nhansu_td:{label:'+ Thêm công nhân'}
   };
   if(cfg[state.view] && canEdit(state.view)){
-    const onThiCongOtherTab = state.view==='thi_cong' && state.thiCongTab!=='baocao';
+    const conSubKey = state.view==='thi_cong' ? thiCongSubFormKey() : null;
+    const onThiCongOtherTab = state.view==='thi_cong' && !conSubKey && state.thiCongTab!=='baocao';
     const handler = state.view==='thi_cong' ? 'thiCongTopbarAdd()' : `toggleForm('${state.view}')`;
-    const label = onThiCongOtherTab ? cfg[state.view].label : (state.formOpen[state.view]?'Đóng biểu mẫu':cfg[state.view].label);
+    const isOpen = conSubKey ? state.formOpen[conSubKey] : state.formOpen[state.view];
+    const label = onThiCongOtherTab ? cfg[state.view].label : (isOpen?'Đóng biểu mẫu':cfg[state.view].label);
     wrap.innerHTML = `<button class="btn btn-accent" onclick="${handler}">${label}</button>`;
   } else {
     wrap.innerHTML = '';
   }
 }
+function thiCongSubFormKey(){
+  return state.thiCongTab==='khautru' ? 'con_kt' : state.thiCongTab==='phat' ? 'con_phat' : null;
+}
 function thiCongTopbarAdd(){
+  const subKey = thiCongSubFormKey();
+  if(subKey){ toggleForm(subKey); return; }
   if(state.thiCongTab!=='baocao'){
     state.thiCongTab='baocao'; state.formOpen.thi_cong=true; state.edit.thi_cong=null; state.conPhotoDraft=[];
     render(); playPageAnim(); return;
@@ -2647,12 +2684,365 @@ function conQuanSoChart(rows){
   });
 }
 
+/* ---- tab: Công nhật khấu trừ + Phạt thi công ---- */
+const SUB_PHOTO_MAX = 6;
+function conIsTeamOther(value, isEditing){
+  const known = getKnownTeams();
+  return (isEditing && !known.includes(value)) || (!isEditing && known.length===0);
+}
+/* ô chọn tổ đội (dropdown + "Tổ mới...") dùng cho nhiều trường tổ đội trong cùng 1 form — name = tên trường */
+function conTeamSelectHtml(editing, name, label){
+  const known = getKnownTeams();
+  const val = editing ? (editing[name]||'') : '';
+  const isOther = conIsTeamOther(val, !!editing);
+  return `<div class="field"><label>${esc(label)}</label>
+    <select name="${name}" onchange="toggleSubTeamOther(this)">
+      ${known.map(t=>`<option value="${esc(t)}" ${editing&&val===t?'selected':''}>${esc(t)}</option>`).join('')}
+      <option value="Khác" ${isOther?'selected':''}>+ Tổ mới...</option>
+    </select></div>`;
+}
+function conTeamOtherRowHtml(editing, name){
+  const val = editing ? (editing[name]||'') : '';
+  const isOther = conIsTeamOther(val, !!editing);
+  return `<div class="field sub-team-other-row" data-for="${name}" style="${isOther?'':'display:none;'}"><label>Tên tổ mới</label><input name="${name}Other" placeholder="VD: Tổ 1 - Anh Bình" value="${isOther&&editing?esc(val):''}"></div>`;
+}
+function toggleSubTeamOther(sel){
+  const row = sel.closest('form').querySelector('.sub-team-other-row[data-for="'+sel.name+'"]');
+  if(row) row.style.display = sel.value==='Khác' ? '' : 'none';
+}
+function subFormError(f, msg){ const el = f.querySelector('.sub-form-error'); if(el){ el.textContent = msg; el.hidden = false; } }
+function conReadTeam(f, name){ return f[name].value==='Khác' ? f[name+'Other'].value.trim() : f[name].value; }
+function fmtDays(n){ return (Number(n)||0).toLocaleString('vi-VN', {maximumFractionDigits:2}); }
+function calcKhauTruAmount(f){
+  const days = Number(f.days.value)||0;
+  const rate = parseMoney(f.rate.value);
+  f.amountPreview.value = formatThousands(Math.round(days*rate));
+}
+function conTeamSummaryRows(rows, teamKey){
+  const by = {};
+  rows.forEach(r=>{
+    const t = r[teamKey] || '—';
+    if(!by[t]) by[t] = {team:t, count:0, days:0, quantity:0, amount:0};
+    by[t].count++; by[t].days += r.days||0; by[t].quantity += r.quantity||0; by[t].amount += r.amount||0;
+  });
+  return Object.values(by).sort((a,b)=>b.amount-a.amount);
+}
+
+/* ảnh đính kèm cho 2 thẻ con — dùng chung, phân biệt theo tên khoá trong state */
+async function onSubPhotoInput(e, key){
+  const files = Array.from(e.target.files||[]);
+  const room = Math.max(0, SUB_PHOTO_MAX - state[key].length);
+  for(const file of files.slice(0, room)){
+    state[key].push(await resizeImageFile(file));
+  }
+  e.target.value = '';
+  renderSubPhotoGrid(key);
+}
+function removeSubPhotoDraft(key, idx){ state[key].splice(idx,1); renderSubPhotoGrid(key); }
+function renderSubPhotoGrid(key){
+  const grid = document.getElementById(key+'Grid');
+  if(!grid) return;
+  grid.innerHTML = state[key].map((src,i)=>`
+    <div class="photo-thumb">
+      <img src="${driveImgUrl(src)}" alt="Ảnh đính kèm">
+      <button type="button" onclick="removeSubPhotoDraft('${key}',${i})">×</button>
+    </div>`).join('');
+  const input = document.getElementById(key+'Input');
+  if(input) input.disabled = state[key].length>=SUB_PHOTO_MAX;
+}
+function subPhotoFieldHtml(key){
+  const draft = state[key];
+  return `<div class="field">
+    <label>Ảnh đính kèm</label>
+    <input id="${key}Input" type="file" accept="image/*" multiple onchange="onSubPhotoInput(event,'${key}')" ${draft.length>=SUB_PHOTO_MAX?'disabled':''}>
+    <div class="photo-hint">Tối đa ${SUB_PHOTO_MAX} ảnh mỗi bản ghi — ảnh sẽ được thu nhỏ trước khi lưu.</div>
+    <div class="photo-grid" id="${key}Grid">
+      ${draft.map((src,i)=>`
+        <div class="photo-thumb">
+          <img src="${driveImgUrl(src)}" alt="Ảnh đính kèm">
+          <button type="button" onclick="removeSubPhotoDraft('${key}',${i})">×</button>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+function photoStripHtml(source, r){
+  const ph = r.photos||[];
+  if(!ph.length) return '';
+  return `<div class="photo-strip">
+    ${ph.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('${source}',${r.id},${i})" alt="Ảnh đính kèm">`).join('')}
+    ${ph.length>4?`<span class="photo-more">+${ph.length-4}</span>`:''}
+  </div>`;
+}
+const SUB_SAVE_FULL_MSG = 'Không thể lưu — bộ nhớ trình duyệt đã đầy. Hãy xoá bớt ảnh hoặc bản ghi cũ rồi thử lại.';
+
+function khauTruCreateOrUpdate(e){
+  e.preventDefault();
+  const f = e.target;
+  const team = conReadTeam(f, 'team');
+  const targetTeam = conReadTeam(f, 'targetTeam');
+  if(!team){ subFormError(f,'Vui lòng nhập tên tổ đội khấu trừ.'); return; }
+  if(!targetTeam){ subFormError(f,'Vui lòng nhập tên tổ đội bị khấu trừ.'); return; }
+  if(team===targetTeam){ subFormError(f,'Tổ đội khấu trừ và tổ đội bị khấu trừ không được trùng nhau.'); return; }
+  const rows = load(LS.conKhauTru, []);
+  const days = Math.max(0, Number(f.days.value)||0);
+  const rate = parseMoney(f.rate.value);
+  const payload = {
+    date:normalizeDate(f.date.value), team, targetTeam, days, rate, amount:Math.round(days*rate),
+    note:f.note.value.trim(), photos: state.khauTruPhotoDraft.slice()
+  };
+  if(state.edit.con_kt){
+    payload.id = state.edit.con_kt;
+    const idx = rows.findIndex(r=>r.id===state.edit.con_kt);
+    rows[idx] = {...rows[idx], ...payload};
+  } else {
+    payload.id = uid(rows);
+    rows.push(payload);
+  }
+  if(!save(LS.conKhauTru, rows)){ subFormError(f, SUB_SAVE_FULL_MSG); return; }
+  syncWithPhotos('saveKhauTru', 'khautru', payload);
+  state.err.khauTru=null; state.edit.con_kt=null; state.formOpen.con_kt=false; render();
+}
+function khauTruEdit(id){
+  const row = load(LS.conKhauTru, []).find(r=>r.id===id);
+  state.khauTruPhotoDraft = row && row.photos ? row.photos.slice() : [];
+  state.edit.con_kt=id; state.formOpen.con_kt=true; state.err.khauTru=null; render();
+}
+function khauTruDelete(id){
+  save(LS.conKhauTru, load(LS.conKhauTru,[]).filter(r=>r.id!==id));
+  syncWrite('deleteKhauTru', {id});
+  state.confirmId=null; render();
+}
+function renderThiCongKhauTru(){
+  const sub = document.getElementById('thiCongSub');
+  const allRows = load(LS.conKhauTru, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.id-a.id);
+  const rows = applySearch(allRows, ['team','targetTeam','note']);
+  const editing = state.edit.con_kt ? allRows.find(r=>r.id===state.edit.con_kt) : null;
+  const totalDays = allRows.reduce((a,r)=>a+(r.days||0),0);
+  const totalAmount = allRows.reduce((a,r)=>a+(r.amount||0),0);
+  const targetCount = new Set(allRows.map(r=>r.targetTeam).filter(Boolean)).size;
+  const summary = conTeamSummaryRows(allRows, 'targetTeam');
+  const pg = paginate(rows, 'conKhauTru', 10);
+  const isLoadingKpi = !state.hasSyncedOnce && state.syncStatus==='syncing';
+  const asc = allRows.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  sub.innerHTML = `
+    <div class="kpi-grid cols-3">
+      ${kpiCard('spark-kt0','kpi-orange','Tổng tiền khấu trừ', vnd(totalAmount), targetCount+' tổ bị khấu trừ', '', '', isLoadingKpi)}
+      ${kpiCard('spark-kt1','kpi-blue','Tổng số công khấu trừ', fmtDays(totalDays)+' công', '', '', '', isLoadingKpi)}
+      ${kpiCard('spark-kt2','kpi-purple','Số lượt khấu trừ', String(allRows.length)+' lượt', '', '', '', isLoadingKpi)}
+    </div>
+
+    ${state.formOpen.con_kt ? `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>${editing?'Sửa công nhật khấu trừ':'Thêm công nhật khấu trừ'}</h3></div>
+      <div class="card-body">
+        <form onsubmit="khauTruCreateOrUpdate(event)">
+          <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
+          <div class="formrow2">
+            ${conTeamSelectHtml(editing, 'team', 'Tổ đội khấu trừ')}
+            ${conTeamSelectHtml(editing, 'targetTeam', 'Tổ đội bị khấu trừ')}
+          </div>
+          <div class="formrow2">
+            ${conTeamOtherRowHtml(editing, 'team')}
+            ${conTeamOtherRowHtml(editing, 'targetTeam')}
+          </div>
+          <div class="formrow3">
+            <div class="field"><label>Số công khấu trừ</label><input type="number" name="days" min="0" step="any" required placeholder="VD: 2.5" oninput="calcKhauTruAmount(this.form)" value="${editing?editing.days:''}"></div>
+            <div class="field"><label>Đơn giá / công (đ)</label><input type="text" inputmode="numeric" name="rate" autocomplete="off" oninput="onMoneyInput(this); calcKhauTruAmount(this.form)" value="${editing?formatThousands(editing.rate):''}"></div>
+            <div class="field"><label>Thành tiền (đ)</label><input type="text" name="amountPreview" readonly tabindex="-1" value="${editing?formatThousands(editing.amount):''}"></div>
+          </div>
+          <div class="field"><label>Lý do / ghi chú</label><input name="note" placeholder="VD: Công nhật hỗ trợ tổ khác, trừ vào tiền khoán" value="${editing?esc(editing.note):''}"></div>
+          ${subPhotoFieldHtml('khauTruPhotoDraft')}
+          <div class="error-msg sub-form-error" hidden></div>
+          <div style="display:flex; gap:10px; margin-top:13px;">
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu khấu trừ'}</button>
+            <button class="btn" type="button" onclick="toggleForm('con_kt')">Huỷ</button>
+          </div>
+        </form>
+      </div>
+    </div>` : ''}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>Tổng hợp theo tổ đội bị khấu trừ</h3></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Tổ đội bị khấu trừ</th><th class="num">Số lượt</th><th class="num">Số công</th><th class="num">Thành tiền</th></tr></thead>
+        <tbody>
+          ${summary.length===0?`<tr class="empty-row"><td colspan="4">Chưa có khoản khấu trừ nào.</td></tr>`:
+          summary.map(s=>`
+            <tr>
+              <td><b>${esc(s.team)}</b></td>
+              <td class="num">${s.count}</td>
+              <td class="num">${fmtDays(s.days)}</td>
+              <td class="num"><b>${vnd(s.amount)}</b></td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Danh sách công nhật khấu trừ</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="num">Ngày</th><th>Tổ đội khấu trừ</th><th>Tổ đội bị khấu trừ</th><th class="num">Số công</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Lý do / ghi chú</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có khoản khấu trừ nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          pg.pageRows.map(r=>`
+            <tr>
+              <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
+              <td><b>${esc(r.team)||'—'}</b></td>
+              <td><b>${esc(r.targetTeam)||'—'}</b></td>
+              <td class="num">${fmtDays(r.days)}</td>
+              <td class="num">${vnd(r.rate)}</td>
+              <td class="num"><b>${vnd(r.amount)}</b></td>
+              <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}${photoStripHtml('conKhauTru', r)}</td>
+              <td>${canEdit('thi_cong')?`<div class="row-actions">
+                <button class="link-btn" onclick="khauTruEdit(${r.id})">Sửa</button>
+                ${confirmDelete(r.id,'khauTruDelete')}
+              </div>`:''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+      ${paginationBar('conKhauTru', pg)}
+    </div>
+  `;
+  mountSparklines([
+    {id:'spark-kt0', data:asc.map(r=>r.amount||0)},
+    {id:'spark-kt1', data:asc.map(r=>r.days||0)},
+    {id:'spark-kt2', data:asc.map((_,i)=>i+1)}
+  ]);
+}
+
+function phatCreateOrUpdate(e){
+  e.preventDefault();
+  const f = e.target;
+  const team = conReadTeam(f, 'team');
+  if(!team){ subFormError(f,'Vui lòng nhập tên tổ đội.'); return; }
+  const rows = load(LS.conPhat, []);
+  const payload = {
+    date:normalizeDate(f.date.value), team, quantity:Math.max(0, Number(f.quantity.value)||0),
+    amount:parseMoney(f.amount.value), note:f.note.value.trim(), photos: state.phatPhotoDraft.slice()
+  };
+  if(state.edit.con_phat){
+    payload.id = state.edit.con_phat;
+    const idx = rows.findIndex(r=>r.id===state.edit.con_phat);
+    rows[idx] = {...rows[idx], ...payload};
+  } else {
+    payload.id = uid(rows);
+    rows.push(payload);
+  }
+  if(!save(LS.conPhat, rows)){ subFormError(f, SUB_SAVE_FULL_MSG); return; }
+  syncWithPhotos('savePhat', 'phat', payload);
+  state.err.phat=null; state.edit.con_phat=null; state.formOpen.con_phat=false; render();
+}
+function phatEdit(id){
+  const row = load(LS.conPhat, []).find(r=>r.id===id);
+  state.phatPhotoDraft = row && row.photos ? row.photos.slice() : [];
+  state.edit.con_phat=id; state.formOpen.con_phat=true; state.err.phat=null; render();
+}
+function phatDelete(id){
+  save(LS.conPhat, load(LS.conPhat,[]).filter(r=>r.id!==id));
+  syncWrite('deletePhat', {id});
+  state.confirmId=null; render();
+}
+function renderThiCongPhat(){
+  const sub = document.getElementById('thiCongSub');
+  const allRows = load(LS.conPhat, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.id-a.id);
+  const rows = applySearch(allRows, ['team','note']);
+  const editing = state.edit.con_phat ? allRows.find(r=>r.id===state.edit.con_phat) : null;
+  const totalAmount = allRows.reduce((a,r)=>a+(r.amount||0),0);
+  const totalQty = allRows.reduce((a,r)=>a+(r.quantity||0),0);
+  const teamCount = new Set(allRows.map(r=>r.team).filter(Boolean)).size;
+  const summary = conTeamSummaryRows(allRows, 'team');
+  const pg = paginate(rows, 'conPhat', 10);
+  const isLoadingKpi = !state.hasSyncedOnce && state.syncStatus==='syncing';
+  const asc = allRows.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  sub.innerHTML = `
+    <div class="kpi-grid cols-3">
+      ${kpiCard('spark-ph0','kpi-red','Tổng tiền phạt', vnd(totalAmount), teamCount+' tổ đội bị phạt', '', '', isLoadingKpi)}
+      ${kpiCard('spark-ph1','kpi-blue','Tổng số lượng', fmtDays(totalQty), '', '', '', isLoadingKpi)}
+      ${kpiCard('spark-ph2','kpi-purple','Số lượt phạt', String(allRows.length)+' lượt', '', '', '', isLoadingKpi)}
+    </div>
+
+    ${state.formOpen.con_phat ? `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>${editing?'Sửa phạt thi công':'Thêm phạt thi công'}</h3></div>
+      <div class="card-body">
+        <form onsubmit="phatCreateOrUpdate(event)">
+          <div class="formrow2">
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
+            ${conTeamSelectHtml(editing, 'team', 'Tổ đội')}
+          </div>
+          ${conTeamOtherRowHtml(editing, 'team')}
+          <div class="formrow2">
+            <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="any" required autocomplete="off" value="${editing?editing.quantity:1}"></div>
+            <div class="field"><label>Số tiền phạt (đ)</label><input type="text" inputmode="numeric" name="amount" required autocomplete="off" oninput="onMoneyInput(this)" value="${editing?formatThousands(editing.amount):''}"></div>
+          </div>
+          <div class="field"><label>Lý do phạt</label><textarea name="note" rows="3" required placeholder="VD: Vi phạm an toàn lao động, thi công sai kỹ thuật...">${editing?esc(editing.note):''}</textarea></div>
+          ${subPhotoFieldHtml('phatPhotoDraft')}
+          <div class="error-msg sub-form-error" hidden></div>
+          <div style="display:flex; gap:10px; margin-top:13px;">
+            <button class="btn btn-accent" type="submit">${editing?'Lưu thay đổi':'Lưu phạt'}</button>
+            <button class="btn" type="button" onclick="toggleForm('con_phat')">Huỷ</button>
+          </div>
+        </form>
+      </div>
+    </div>` : ''}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>Tổng hợp theo tổ đội</h3></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Tổ đội</th><th class="num">Số lượt phạt</th><th class="num">Số lượng</th><th class="num">Tổng tiền phạt</th></tr></thead>
+        <tbody>
+          ${summary.length===0?`<tr class="empty-row"><td colspan="4">Chưa có khoản phạt nào.</td></tr>`:
+          summary.map(s=>`
+            <tr>
+              <td><b>${esc(s.team)}</b></td>
+              <td class="num">${s.count}</td>
+              <td class="num">${fmtDays(s.quantity)}</td>
+              <td class="num"><b>${vnd(s.amount)}</b></td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Danh sách phạt thi công</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="num">Ngày</th><th>Tổ đội</th><th class="num">Số lượng</th><th class="num">Số tiền phạt</th><th>Lý do phạt</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr class="empty-row"><td colspan="6">${allRows.length===0?'Chưa có khoản phạt nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          pg.pageRows.map(r=>`
+            <tr>
+              <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
+              <td><b>${esc(r.team)}</b></td>
+              <td class="num">${fmtDays(r.quantity)}</td>
+              <td class="num"><b>${vnd(r.amount)}</b></td>
+              <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}${photoStripHtml('conPhat', r)}</td>
+              <td>${canEdit('thi_cong')?`<div class="row-actions">
+                <button class="link-btn" onclick="phatEdit(${r.id})">Sửa</button>
+                ${confirmDelete(r.id,'phatDelete')}
+              </div>`:''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>
+      ${paginationBar('conPhat', pg)}
+    </div>
+  `;
+  mountSparklines([
+    {id:'spark-ph0', data:asc.map(r=>r.amount||0)},
+    {id:'spark-ph1', data:asc.map(r=>r.quantity||0)},
+    {id:'spark-ph2', data:asc.map((_,i)=>i+1)}
+  ]);
+}
+
 const THICONG_TABS = [
   {key:'tongquan', label:'Tổng quan'},
   {key:'baocao', label:'Báo cáo hàng ngày'},
   {key:'quanso', label:'Báo cáo quân số'},
   {key:'thoitiet', label:'Thời tiết'},
-  {key:'doinhom', label:'Đội nhóm'}
+  {key:'doinhom', label:'Đội nhóm'},
+  {key:'khautru', label:'Công nhật khấu trừ'},
+  {key:'phat', label:'Phạt thi công'}
 ];
 function renderThiCong(){
   const allRows = load(LS.construction, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -2669,7 +3059,7 @@ function renderThiCong(){
     </div>
     <div id="thiCongSub"></div>
   `;
-  const fns = { tongquan:renderThiCongTongQuan, baocao:renderThiCongBaoCao, quanso:renderThiCongQuanSo, thoitiet:renderThiCongThoiTiet, doinhom:renderThiCongDoiNhom };
+  const fns = { tongquan:renderThiCongTongQuan, baocao:renderThiCongBaoCao, quanso:renderThiCongQuanSo, thoitiet:renderThiCongThoiTiet, doinhom:renderThiCongDoiNhom, khautru:renderThiCongKhauTru, phat:renderThiCongPhat };
   (fns[state.thiCongTab] || renderThiCongTongQuan)(allRows);
 }
 
