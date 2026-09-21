@@ -653,14 +653,14 @@ function normalizeKhauTru(rows){
     id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), team:String(pick(r,'team')||''),
     targetTeam:String(pick(r,'targetTeam')||''),
     days:Number(pick(r,'days'))||0, rate:Number(pick(r,'rate'))||0, amount:Number(pick(r,'amount'))||0,
-    note:String(pick(r,'note')||''), photos:splitPhotos(pick(r,'photos'))
+    note:String(pick(r,'note')||''), reportedBy:String(pick(r,'reportedBy')||''), photos:splitPhotos(pick(r,'photos'))
   }));
 }
 function normalizePhat(rows){
   return rows.map(r => ({
     id:Number(pick(r,'id'))||0, date:normalizeDate(pick(r,'date')), team:String(pick(r,'team')||''),
     quantity:Number(pick(r,'quantity'))||0,
-    amount:Number(pick(r,'amount'))||0, note:String(pick(r,'note')||''), photos:splitPhotos(pick(r,'photos'))
+    amount:Number(pick(r,'amount'))||0, note:String(pick(r,'note')||''), reportedBy:String(pick(r,'reportedBy')||''), photos:splitPhotos(pick(r,'photos'))
   }));
 }
 async function syncAllFromServer(){
@@ -1065,6 +1065,8 @@ const state = {
   khoPhotoDraft:[],
   khauTruPhotoDraft:[],
   phatPhotoDraft:[],
+  conKtPeriod:'ngay',
+  conPhatPeriod:'ngay',
   lightboxSrc:null,
   syncStatus:'local',
   editingStartDate:false,
@@ -2711,6 +2713,11 @@ function toggleSubTeamOther(sel){
   if(row) row.style.display = sel.value==='Khác' ? '' : 'none';
 }
 function subFormError(f, msg){ const el = f.querySelector('.sub-form-error'); if(el){ el.textContent = msg; el.hidden = false; } }
+function subReporterField(editing){
+  const s = getSession();
+  const def = editing ? (editing.reportedBy||'') : ((s && s.fullName) || '');
+  return `<div class="field"><label>Người báo cáo</label><input name="reportedBy" placeholder="Tên người báo cáo" value="${esc(def)}"></div>`;
+}
 function conReadTeam(f, name){ return f[name].value==='Khác' ? f[name+'Other'].value.trim() : f[name].value; }
 function fmtDays(n){ return (Number(n)||0).toLocaleString('vi-VN', {maximumFractionDigits:2}); }
 function calcKhauTruAmount(f){
@@ -2775,6 +2782,67 @@ function photoStripHtml(source, r){
 }
 const SUB_SAVE_FULL_MSG = 'Không thể lưu — bộ nhớ trình duyệt đã đầy. Hãy xoá bớt ảnh hoặc bản ghi cũ rồi thử lại.';
 
+/* ---- dashboard line chart dùng chung cho 2 thẻ Công nhật khấu trừ / Phạt thi công ---- */
+function conSubPeriodChange(kind, period){ state[kind+'Period'] = period; render(); }
+function subDashboardHtml(kind, hasData, titles){
+  const period = state[kind+'Period'];
+  const names = {ngay:'Ngày', tuan:'Tuần', thang:'Tháng'};
+  return `
+    <div class="section-head" style="margin-bottom:12px;">
+      <div><h3 style="margin:0;">Thống kê theo thời gian</h3></div>
+      <div class="period-toggle">
+        ${['ngay','tuan','thang'].map(p=>`<button class="${period===p?'active':''}" onclick="conSubPeriodChange('${kind}','${p}')">${names[p]}</button>`).join('')}
+      </div>
+    </div>
+    ${hasData ? `
+    <div class="grid2" style="margin-bottom:16px;">
+      <div class="card chartbox"><h3 style="margin-bottom:12px;">${esc(titles[0])}</h3><div class="chart-canvas-wrap"><canvas id="${kind}Chart1"></canvas></div></div>
+      <div class="card chartbox"><h3 style="margin-bottom:12px;">${esc(titles[1])}</h3><div class="chart-canvas-wrap"><canvas id="${kind}Chart2"></canvas></div></div>
+    </div>
+    <div class="card chartbox" style="margin-bottom:16px;"><h3 style="margin-bottom:12px;">${esc(titles[2])}</h3><div class="chart-canvas-wrap"><canvas id="${kind}Chart3"></canvas></div></div>
+    ` : `<div class="card" style="margin-bottom:16px;"><div class="card-body" style="color:var(--muted); text-align:center;">Chưa có dữ liệu để thống kê.</div></div>`}`;
+}
+/* cfg: { field2, label2, color1, teamKey } — biểu đồ 1: tiền, 2: field2 (số công / số lượng), 3: tiền theo từng tổ đội */
+function mountSubLineCharts(kind, rows, cfg){
+  (state.charts[kind+'List']||[]).forEach(c=>c.destroy());
+  state.charts[kind+'List'] = [];
+  const dated = rows.filter(r=>r.date);
+  if(!dated.length) return;
+  const period = state[kind+'Period'];
+  const ink = getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  const keyOf = r => khoChinhBucketKey(r.date, period);
+  const bucketKeys = [...new Set(dated.map(keyOf))].sort();
+  const labels = bucketKeys.map(k=>khoChinhBucketLabel(k, period));
+  const sumBy = (list, field) => bucketKeys.map(k=>list.filter(r=>keyOf(r)===k).reduce((a,r)=>a+(r[field]||0),0));
+  const moneyTick = v => Math.abs(v)>=1e6 ? (v/1e6).toLocaleString('vi-VN',{maximumFractionDigits:1})+'tr' : Number(v).toLocaleString('vi-VN');
+  const baseOpts = (tickFmt, tipFmt, legend) => ({
+    maintainAspectRatio:false,
+    interaction:{ mode:'index', intersect:false },
+    plugins:{
+      legend: legend ? { display:true, position:'bottom', labels:{color:ink, boxWidth:10, font:{size:11}} } : { display:false },
+      tooltip:{ callbacks:{ label: c => (c.dataset.label ? c.dataset.label+': ' : '') + tipFmt(c.parsed.y) } }
+    },
+    scales:{
+      x:{ ticks:{color:ink, font:{size:10.5}}, grid:{color:'rgba(255,255,255,.06)'} },
+      y:{ beginAtZero:true, ticks:{color:ink, font:{size:10.5}, callback:tickFmt}, grid:{color:'rgba(255,255,255,.08)'} }
+    }
+  });
+  const mk = (id, datasets, opts) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    state.charts[kind+'List'].push(new Chart(el, { type:'line', data:{ labels, datasets }, options:opts }));
+  };
+  const line = (label, data, color, fill) => ({ label, data, borderColor:color, backgroundColor:color+'2e', tension:.35, pointRadius:3, borderWidth:2, fill:!!fill });
+
+  mk(kind+'Chart1', [line('Tiền', sumBy(dated,'amount'), cfg.color1, true)], baseOpts(moneyTick, vnd, false));
+  mk(kind+'Chart2', [line(cfg.label2, sumBy(dated, cfg.field2), '#3b82f6', true)], baseOpts(v=>Number(v).toLocaleString('vi-VN'), fmtDays, false));
+
+  const byTeam = {};
+  dated.forEach(r=>{ const t = r[cfg.teamKey] || '—'; byTeam[t] = (byTeam[t]||0) + (r.amount||0); });
+  const topTeams = Object.keys(byTeam).sort((a,b)=>byTeam[b]-byTeam[a]).slice(0,6);
+  mk(kind+'Chart3', topTeams.map((t,i)=>line(t, sumBy(dated.filter(r=>(r[cfg.teamKey]||'—')===t),'amount'), CHART_PALETTE[i%CHART_PALETTE.length], false)), baseOpts(moneyTick, vnd, true));
+}
+
 function khauTruCreateOrUpdate(e){
   e.preventDefault();
   const f = e.target;
@@ -2788,7 +2856,7 @@ function khauTruCreateOrUpdate(e){
   const rate = parseMoney(f.rate.value);
   const payload = {
     date:normalizeDate(f.date.value), team, targetTeam, days, rate, amount:Math.round(days*rate),
-    note:f.note.value.trim(), photos: state.khauTruPhotoDraft.slice()
+    note:f.note.value.trim(), reportedBy:f.reportedBy.value.trim(), photos: state.khauTruPhotoDraft.slice()
   };
   if(state.edit.con_kt){
     payload.id = state.edit.con_kt;
@@ -2815,7 +2883,7 @@ function khauTruDelete(id){
 function renderThiCongKhauTru(){
   const sub = document.getElementById('thiCongSub');
   const allRows = load(LS.conKhauTru, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.id-a.id);
-  const rows = applySearch(allRows, ['team','targetTeam','note']);
+  const rows = applySearch(allRows, ['team','targetTeam','note','reportedBy']);
   const editing = state.edit.con_kt ? allRows.find(r=>r.id===state.edit.con_kt) : null;
   const totalDays = allRows.reduce((a,r)=>a+(r.days||0),0);
   const totalAmount = allRows.reduce((a,r)=>a+(r.amount||0),0);
@@ -2837,7 +2905,10 @@ function renderThiCongKhauTru(){
       <div class="card-head"><h3>${editing?'Sửa công nhật khấu trừ':'Thêm công nhật khấu trừ'}</h3></div>
       <div class="card-body">
         <form onsubmit="khauTruCreateOrUpdate(event)">
-          <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
+          <div class="formrow2">
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
+            ${subReporterField(editing)}
+          </div>
           <div class="formrow2">
             ${conTeamSelectHtml(editing, 'team', 'Tổ đội khấu trừ')}
             ${conTeamSelectHtml(editing, 'targetTeam', 'Tổ đội bị khấu trừ')}
@@ -2862,6 +2933,8 @@ function renderThiCongKhauTru(){
       </div>
     </div>` : ''}
 
+    ${subDashboardHtml('conKt', allRows.some(r=>r.date), ['Tiền khấu trừ theo thời gian', 'Số công khấu trừ theo thời gian', 'Tiền khấu trừ theo từng tổ đội bị khấu trừ'])}
+
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head"><h3>Tổng hợp theo tổ đội bị khấu trừ</h3></div>
       <div class="tablewrap"><table>
@@ -2882,9 +2955,9 @@ function renderThiCongKhauTru(){
     <div class="card">
       <div class="card-head"><h3>Danh sách công nhật khấu trừ</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="num">Ngày</th><th>Tổ đội khấu trừ</th><th>Tổ đội bị khấu trừ</th><th class="num">Số công</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Lý do / ghi chú</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Tổ đội khấu trừ</th><th>Tổ đội bị khấu trừ</th><th class="num">Số công</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th>Người báo cáo</th><th>Lý do / ghi chú</th><th></th></tr></thead>
         <tbody>
-          ${rows.length===0?`<tr class="empty-row"><td colspan="8">${allRows.length===0?'Chưa có khoản khấu trừ nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          ${rows.length===0?`<tr class="empty-row"><td colspan="9">${allRows.length===0?'Chưa có khoản khấu trừ nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
             <tr>
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
@@ -2893,6 +2966,7 @@ function renderThiCongKhauTru(){
               <td class="num">${fmtDays(r.days)}</td>
               <td class="num">${vnd(r.rate)}</td>
               <td class="num"><b>${vnd(r.amount)}</b></td>
+              <td>${esc(r.reportedBy)||'—'}</td>
               <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}${photoStripHtml('conKhauTru', r)}</td>
               <td>${canEdit('thi_cong')?`<div class="row-actions">
                 <button class="link-btn" onclick="khauTruEdit(${r.id})">Sửa</button>
@@ -2909,6 +2983,7 @@ function renderThiCongKhauTru(){
     {id:'spark-kt1', data:asc.map(r=>r.days||0)},
     {id:'spark-kt2', data:asc.map((_,i)=>i+1)}
   ]);
+  mountSubLineCharts('conKt', allRows, { field2:'days', label2:'Số công', color1:'#f59e0b', teamKey:'targetTeam' });
 }
 
 function phatCreateOrUpdate(e){
@@ -2919,7 +2994,7 @@ function phatCreateOrUpdate(e){
   const rows = load(LS.conPhat, []);
   const payload = {
     date:normalizeDate(f.date.value), team, quantity:Math.max(0, Number(f.quantity.value)||0),
-    amount:parseMoney(f.amount.value), note:f.note.value.trim(), photos: state.phatPhotoDraft.slice()
+    amount:parseMoney(f.amount.value), note:f.note.value.trim(), reportedBy:f.reportedBy.value.trim(), photos: state.phatPhotoDraft.slice()
   };
   if(state.edit.con_phat){
     payload.id = state.edit.con_phat;
@@ -2946,7 +3021,7 @@ function phatDelete(id){
 function renderThiCongPhat(){
   const sub = document.getElementById('thiCongSub');
   const allRows = load(LS.conPhat, []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.id-a.id);
-  const rows = applySearch(allRows, ['team','note']);
+  const rows = applySearch(allRows, ['team','note','reportedBy']);
   const editing = state.edit.con_phat ? allRows.find(r=>r.id===state.edit.con_phat) : null;
   const totalAmount = allRows.reduce((a,r)=>a+(r.amount||0),0);
   const totalQty = allRows.reduce((a,r)=>a+(r.quantity||0),0);
@@ -2978,6 +3053,7 @@ function renderThiCongPhat(){
             <div class="field"><label>Số tiền phạt (đ)</label><input type="text" inputmode="numeric" name="amount" required autocomplete="off" oninput="onMoneyInput(this)" value="${editing?formatThousands(editing.amount):''}"></div>
           </div>
           <div class="field"><label>Lý do phạt</label><textarea name="note" rows="3" required placeholder="VD: Vi phạm an toàn lao động, thi công sai kỹ thuật...">${editing?esc(editing.note):''}</textarea></div>
+          ${subReporterField(editing)}
           ${subPhotoFieldHtml('phatPhotoDraft')}
           <div class="error-msg sub-form-error" hidden></div>
           <div style="display:flex; gap:10px; margin-top:13px;">
@@ -2987,6 +3063,8 @@ function renderThiCongPhat(){
         </form>
       </div>
     </div>` : ''}
+
+    ${subDashboardHtml('conPhat', allRows.some(r=>r.date), ['Tiền phạt theo thời gian', 'Số lượng phạt theo thời gian', 'Tiền phạt theo từng tổ đội'])}
 
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head"><h3>Tổng hợp theo tổ đội</h3></div>
@@ -3008,15 +3086,16 @@ function renderThiCongPhat(){
     <div class="card">
       <div class="card-head"><h3>Danh sách phạt thi công</h3><span style="font-size:12px; color:var(--muted);">${rows.length} / ${allRows.length}</span></div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="num">Ngày</th><th>Tổ đội</th><th class="num">Số lượng</th><th class="num">Số tiền phạt</th><th>Lý do phạt</th><th></th></tr></thead>
+        <thead><tr><th class="num">Ngày</th><th>Tổ đội</th><th class="num">Số lượng</th><th class="num">Số tiền phạt</th><th>Người báo cáo</th><th>Lý do phạt</th><th></th></tr></thead>
         <tbody>
-          ${rows.length===0?`<tr class="empty-row"><td colspan="6">${allRows.length===0?'Chưa có khoản phạt nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
+          ${rows.length===0?`<tr class="empty-row"><td colspan="7">${allRows.length===0?'Chưa có khoản phạt nào.':'Không tìm thấy kết quả phù hợp.'}</td></tr>`:
           pg.pageRows.map(r=>`
             <tr>
               <td class="num" style="white-space:nowrap;">${vdate(r.date)}</td>
               <td><b>${esc(r.team)}</b></td>
               <td class="num">${fmtDays(r.quantity)}</td>
               <td class="num"><b>${vnd(r.amount)}</b></td>
+              <td>${esc(r.reportedBy)||'—'}</td>
               <td style="color:var(--muted); font-size:12.5px;">${esc(r.note)||'—'}${photoStripHtml('conPhat', r)}</td>
               <td>${canEdit('thi_cong')?`<div class="row-actions">
                 <button class="link-btn" onclick="phatEdit(${r.id})">Sửa</button>
@@ -3033,6 +3112,7 @@ function renderThiCongPhat(){
     {id:'spark-ph1', data:asc.map(r=>r.quantity||0)},
     {id:'spark-ph2', data:asc.map((_,i)=>i+1)}
   ]);
+  mountSubLineCharts('conPhat', allRows, { field2:'quantity', label2:'Số lượng', color1:'#ef4444', teamKey:'team' });
 }
 
 const THICONG_TABS = [
