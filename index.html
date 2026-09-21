@@ -647,6 +647,23 @@ function normalizeStaffTd(rows){
     status: pick(r,'status')==='nghi_viec' ? 'nghi_viec' : 'dang_lam', note:String(pick(r,'note')||'')
   }));
 }
+/* cài đặt dự án (ngày khởi công, địa điểm) lưu trên Sheets tab "CaiDat" (key | value) — server là
+   nguồn đúng. Nếu máy này còn giá trị cũ chỉ lưu cục bộ mà server chưa có dòng đó thì đẩy lên 1 lần. */
+const SETTING_KEYS = ['projectStartDate','projectLocation'];
+function applyServerSettings(rows){
+  const st = load(LS.settings, {}) || {};
+  const onServer = {};
+  rows.forEach(r=>{
+    const k = String(pick(r,'key')||'');
+    if(!SETTING_KEYS.includes(k)) return;
+    onServer[k] = true;
+    const v = pick(r,'value');
+    st[k] = k==='projectStartDate' ? normalizeDate(v) : String(v==null?'':v);
+  });
+  const toPush = SETTING_KEYS.filter(k=>!onServer[k] && st[k]);
+  save(LS.settings, st);
+  toPush.forEach(k=>syncWrite('saveSetting', {data:{key:k, value:st[k]}}));
+}
 function splitPhotos(v){ return v ? String(v).split(',').map(s=>s.trim()).filter(Boolean) : []; }
 function normalizeKhauTru(rows){
   return rows.map(r => ({
@@ -678,6 +695,7 @@ async function syncAllFromServer(){
     if(data.vatTuPhu) save(LS.vatTuPhu, normalizeVatTuPhu(data.vatTuPhu));
     if(data.congKhauTru) save(LS.conKhauTru, normalizeKhauTru(data.congKhauTru));
     if(data.congPhat) save(LS.conPhat, normalizePhat(data.congPhat));
+    if(Array.isArray(data.settings)) applyServerSettings(data.settings);
     setSyncStatus('online');
     state.hasSyncedOnce = true;
     render();
@@ -1382,6 +1400,7 @@ function setProjectStart(dateStr){
   const s = load(LS.settings, {}) || {};
   s.projectStartDate = dateStr;
   save(LS.settings, s);
+  syncWrite('saveSetting', {data:{key:'projectStartDate', value:dateStr}});
 }
 function daysSince(dateStr){
   if(!dateStr) return null;
@@ -1403,6 +1422,7 @@ function setProjectLocation(v){
   const s = load(LS.settings, {}) || {};
   s.projectLocation = v;
   save(LS.settings, s);
+  syncWrite('saveSetting', {data:{key:'projectLocation', value:v}});
 }
 function toggleEditProjectLocation(){ state.editingProjectLocation = !state.editingProjectLocation; render(); }
 function saveProjectLocationForm(e){
