@@ -698,13 +698,18 @@ async function syncAllFromServer(){
     if(Array.isArray(data.settings)) applyServerSettings(data.settings);
     setSyncStatus('online');
     state.hasSyncedOnce = true;
-    render();
+    // đang mở form thêm/sửa dở dang (VD người dùng chuyển sang app Camera chụp ảnh rồi quay lại,
+    // trình duyệt tự đồng bộ lại khi tab hiện lên) -> KHÔNG render lại, tránh xoá mất lựa chọn/nội
+    // dung đang gõ dở (từng bị báo "chọn LTCK lại nhảy sang Công nhật" do form bị vẽ lại giữa chừng).
+    // Dữ liệu vẫn đã cập nhật ngầm, chỉ hoãn hiển thị tới khi người dùng đóng form/điều hướng.
+    if(!anyFormOpen()) render();
   }catch(err){
     setSyncStatus('offline');
     state.hasSyncedOnce = true;
-    render();
+    if(!anyFormOpen()) render();
   }
 }
+function anyFormOpen(){ return Object.values(state.formOpen).some(Boolean); }
 
 function seed(){
   if(!localStorage.getItem(LS.users)){
