@@ -2120,23 +2120,6 @@ function renderKhoChinh(){
   const nhapMaterials = [...new Set(allRows.filter(r=>r.direction==='nhap'&&r.material).map(r=>r.material))];
 
   sub.innerHTML = `
-    <div class="section-head" style="margin-bottom:12px;">
-      <div><h3 style="margin:0;">Vật tư về theo thời gian</h3></div>
-      <div class="period-toggle">
-        <button class="${state.khoChinhTrendPeriod==='ngay'?'active':''}" onclick="khoChinhTrendPeriodChange('ngay')">Ngày</button>
-        <button class="${state.khoChinhTrendPeriod==='tuan'?'active':''}" onclick="khoChinhTrendPeriodChange('tuan')">Tuần</button>
-        <button class="${state.khoChinhTrendPeriod==='thang'?'active':''}" onclick="khoChinhTrendPeriodChange('thang')">Tháng</button>
-      </div>
-    </div>
-    <div class="trend-grid">
-      ${nhapMaterials.length===0?`<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Chưa có dữ liệu nhập kho.</div></div>`:
-      nhapMaterials.map((m,i)=>`
-        <div class="card">
-          <div class="card-head"><h3 style="font-size:13.5px;">${esc(m)}</h3></div>
-          <div class="card-body"><div class="chart-canvas-wrap" style="height:180px;"><canvas id="khoChinhTrendChart_${i}"></canvas></div></div>
-        </div>`).join('')}
-    </div>
-
     ${state.formOpen.kho ? `
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head"><h3>${editing?'Sửa vật tư chính':'Thêm vật tư chính'}</h3></div>
@@ -2201,6 +2184,23 @@ function renderKhoChinh(){
         </form>
       </div>
     </div>` : ''}
+
+    <div class="section-head" style="margin-bottom:12px;">
+      <div><h3 style="margin:0;">Vật tư về theo thời gian</h3></div>
+      <div class="period-toggle">
+        <button class="${state.khoChinhTrendPeriod==='ngay'?'active':''}" onclick="khoChinhTrendPeriodChange('ngay')">Ngày</button>
+        <button class="${state.khoChinhTrendPeriod==='tuan'?'active':''}" onclick="khoChinhTrendPeriodChange('tuan')">Tuần</button>
+        <button class="${state.khoChinhTrendPeriod==='thang'?'active':''}" onclick="khoChinhTrendPeriodChange('thang')">Tháng</button>
+      </div>
+    </div>
+    <div class="trend-grid">
+      ${nhapMaterials.length===0?`<div class="card"><div class="card-body" style="color:var(--muted); text-align:center;">Chưa có dữ liệu nhập kho.</div></div>`:
+      nhapMaterials.map((m,i)=>`
+        <div class="card">
+          <div class="card-head"><h3 style="font-size:13.5px;">${esc(m)}</h3></div>
+          <div class="card-body"><div class="chart-canvas-wrap" style="height:180px;"><canvas id="khoChinhTrendChart_${i}"></canvas></div></div>
+        </div>`).join('')}
+    </div>
 
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head"><h3>Tồn kho theo từng loại</h3></div>
