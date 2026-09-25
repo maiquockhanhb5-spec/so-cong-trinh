@@ -501,6 +501,22 @@ async function apiPost(action, data){
   });
   return { status:'success' };
 }
+/* đọc kết quả 1 lần gọi AI trước đó (đã POST xong, xử lý xong ở server) — qua GET+JSONP nên đọc
+   được response thật, và ảnh không phải gửi lại lần nữa (server đã xử lý và lưu tạm kết quả). */
+function apiGetParams(action, params){
+  return new Promise((resolve, reject) => {
+    if(!API_URL){ reject(new Error('no API_URL')); return; }
+    const cbName = 'sctCb' + (++jsonpCounter);
+    const script = document.createElement('script');
+    const timeout = setTimeout(()=>{ cleanup(); reject(new Error('timeout')); }, 25000);
+    function cleanup(){ delete window[cbName]; script.remove(); clearTimeout(timeout); }
+    window[cbName] = (data)=>{ cleanup(); resolve(data); };
+    script.onerror = ()=>{ cleanup(); reject(new Error('network error')); };
+    const qs = Object.entries(params||{}).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
+    script.src = API_URL + '?action=' + encodeURIComponent(action) + '&secret=' + encodeURIComponent(API_SECRET) + (qs?'&'+qs:'') + '&callback=' + cbName;
+    document.body.appendChild(script);
+  });
+}
 /* gọi lại fn() tối đa (1+extraAttempts) lần nếu lỗi hoặc server báo status:'error',
    có chờ giãn cách giữa các lần — dùng cho các thao tác ghi quan trọng khi nhiều
    người cùng dùng app một lúc dễ gặp tình trạng bận khoá ghi tạm thời. */
@@ -901,6 +917,8 @@ function renderKhoPhotoGrid(){
   if(input) input.disabled = state.khoPhotoDraft.length>=KHO_PHOTO_MAX;
   const err = document.getElementById('khoPhotoErr');
   if(err) err.outerHTML = state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>';
+  const aiBtn = document.getElementById('khoAiBtn');
+  if(aiBtn) aiBtn.disabled = state.khoAiAnalyzing || !state.khoPhotoDraft.some(p=>p.startsWith('data:'));
 }
 
 const LIGHTBOX_SOURCES = { construction:'construction', vatTuChinh:'vatTuChinh', vatTuPhu:'vatTuPhu', conKhauTru:'conKhauTru', conPhat:'conPhat' };
@@ -1086,6 +1104,8 @@ const state = {
   conFilters:{ team:'', task:'', date:'', floor:'' },
   conPhotoDraft:[],
   khoPhotoDraft:[],
+  khoFormDraft:null,
+  khoAiAnalyzing:false,
   khauTruPhotoDraft:[],
   phatPhotoDraft:[],
   conKtPeriod:'ngay',
@@ -1130,7 +1150,7 @@ function toggleForm(key){
   state.formOpen[key]=!wasOpen;
   state.edit[key]=null;
   if(key==='thi_cong' && !wasOpen){ state.conPhotoDraft=[]; }
-  if(key==='kho' && !wasOpen){ state.khoPhotoDraft=[]; state.err.kho=null; }
+  if(key==='kho' && !wasOpen){ state.khoPhotoDraft=[]; state.err.kho=null; state.khoFormDraft=null; }
   if(key==='con_kt' && !wasOpen){ state.khauTruPhotoDraft=[]; state.err.khauTru=null; }
   if(key==='con_phat' && !wasOpen){ state.phatPhotoDraft=[]; state.err.phat=null; }
   render();
@@ -1935,10 +1955,52 @@ function kvtChinhCreateOrUpdate(e){
   }
   state.err.kho = null;
   syncWithPhotos('saveVatTuChinh', 'vattu_chinh', payload);
-  state.edit.kho=null; state.formOpen.kho=false; render();
+  state.edit.kho=null; state.formOpen.kho=false; state.khoFormDraft=null; render();
+}
+/* nhận diện vật tư từ ảnh phiếu vừa chụp bằng AI (Claude) — chỉ điền sẵn form, không tự lưu.
+   Chạy qua Code.gs (POST ảnh -> lưu tạm kết quả -> đọc lại qua GET) để không lộ khoá API ra
+   trình duyệt và tránh giới hạn CORS/độ dài URL của Apps Script Web App. */
+async function analyzeKhoPhotoWithAi(){
+  if(!API_URL){ state.err.kho = 'Tính năng AI cần kết nối server, không dùng được ở bản thử cục bộ.'; render(); return; }
+  const photo = (state.khoPhotoDraft||[]).find(p=>p.startsWith('data:'));
+  if(!photo){ state.err.kho = 'Vui lòng thêm ảnh phiếu vật tư (ảnh vừa chụp/chọn, chưa lưu) trước khi nhận diện.'; render(); return; }
+  state.khoAiAnalyzing = true; state.err.kho = null; render();
+  try{
+    const [meta, b64] = photo.split(',');
+    const mimeType = (meta.match(/data:(.*?);base64/)||[])[1] || 'image/jpeg';
+    const requestId = 'ai'+Date.now()+Math.random().toString(36).slice(2,8);
+    await apiPost('analyzeMaterialPhoto', {
+      requestId, base64:b64, mimeType,
+      materialOptions: KHO_MATERIALS.map(m=>m.label), unitOptions: UNIT_OPTIONS
+    });
+    const res = await apiGetParams('aiResult', { requestId });
+    if(res.status==='success' && res.result && res.result.found!==false){
+      applyAiMaterialResult(res.result);
+    } else {
+      state.err.kho = (res.result&&res.result.found===false) ? 'Không nhận ra đây là phiếu/ảnh vật tư, vui lòng nhập tay.' : (res.message || 'Không nhận diện được ảnh này, vui lòng nhập tay.');
+    }
+  }catch(err){
+    state.err.kho = 'Lỗi khi gọi AI: ' + err.message;
+  }
+  state.khoAiAnalyzing = false; render();
+}
+function applyAiMaterialResult(r){
+  const isKnownMaterial = r.materialMatched && KHO_MATERIALS.some(m=>m.label===r.materialMatched);
+  const rawUnit = String(r.unit||'').trim();
+  state.khoFormDraft = {
+    direction: r.direction==='xuat' ? 'xuat' : 'nhap',
+    date: r.date ? normalizeDate(r.date) : '',
+    material: isKnownMaterial ? r.materialMatched : 'Khác',
+    materialOther: isKnownMaterial ? '' : String(r.material||'').trim(),
+    unit: UNIT_OPTIONS.includes(rawUnit) ? rawUnit : (rawUnit ? 'Khác' : ''),
+    unitOther: UNIT_OPTIONS.includes(rawUnit) ? '' : rawUnit,
+    quantity: (r.quantity!=null && r.quantity!=='') ? Number(r.quantity) : '',
+    pallets: (r.pallets!=null && r.pallets!=='') ? Number(r.pallets) : '',
+    note: '[AI nhận diện — vui lòng kiểm tra lại]' + (r.note ? ' ' + r.note : '')
+  };
 }
 function kvtChinhEdit(id){
-  state.edit.kho=id; state.formOpen.kho=true;
+  state.edit.kho=id; state.formOpen.kho=true; state.khoFormDraft=null;
   const row = load(LS.vatTuChinh, []).find(r=>r.id===id);
   state.khoPhotoDraft = row && row.photos ? row.photos.slice() : [];
   render();
@@ -2037,8 +2099,22 @@ function renderKhoChinh(){
     palletRow.ton = palletRow.nhap - palletRow.xuat;
   }
   const editing = state.edit.kho ? allRows.find(r=>r.id===state.edit.kho) : null;
-  const editingIsOther = !!(editing && !KHO_MATERIALS.some(m=>m.label===editing.material));
-  const editingUnitIsOther = !!(editing && !UNIT_OPTIONS.includes(editing.unit));
+  // pf = giá trị dùng để điền sẵn form: ưu tiên bản ghi đang sửa, không thì dùng bản AI vừa nhận diện
+  // (nếu có), không có gì thì để trống — gộp chung 1 chỗ để form không phải rẽ nhánh nhiều lần.
+  const draft = editing ? null : state.khoFormDraft;
+  const pf = editing ? {
+    direction: editing.direction, date: editing.date, material: editing.material, materialOther: editing.material,
+    isOther: !KHO_MATERIALS.some(m=>m.label===editing.material),
+    quantity: editing.quantity, pallets: editing.pallets, unit: editing.unit, unitOther: editing.unit,
+    unitIsOther: !UNIT_OPTIONS.includes(editing.unit), team: editing.team, note: editing.note
+  } : draft ? {
+    direction: draft.direction||'nhap', date: draft.date || new Date().toISOString().slice(0,10),
+    material: draft.material, materialOther: draft.materialOther||'', isOther: draft.material==='Khác',
+    quantity: draft.quantity, pallets: draft.pallets, unit: draft.unit, unitOther: draft.unitOther||'',
+    unitIsOther: draft.unit==='Khác', team:'', note: draft.note||''
+  } : null;
+  const editingIsOther = !!(pf && pf.isOther);
+  const editingUnitIsOther = !!(pf && pf.unitIsOther);
   const pg = paginate(rows, 'khoChinh', 10);
   const nhapMaterials = [...new Set(allRows.filter(r=>r.direction==='nhap'&&r.material).map(r=>r.material))];
 
@@ -2068,39 +2144,39 @@ function renderKhoChinh(){
           <div class="formrow2">
             <div class="field"><label>Loại giao dịch</label>
               <select name="direction" onchange="toggleKhoDirFields(this)">
-                <option value="nhap" ${editing&&editing.direction==='nhap'?'selected':''}>Nhập kho</option>
-                <option value="xuat" ${editing&&editing.direction==='xuat'?'selected':''}>Xuất kho</option>
+                <option value="nhap" ${pf&&pf.direction==='nhap'?'selected':''}>Nhập kho</option>
+                <option value="xuat" ${pf&&pf.direction==='xuat'?'selected':''}>Xuất kho</option>
               </select>
             </div>
-            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${editing?isoToDmy(editing.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
+            <div class="field"><label>Ngày</label><input type="text" inputmode="numeric" name="date" placeholder="dd/mm/yyyy" maxlength="10" required oninput="onDateMaskInput(this)" value="${pf?isoToDmy(pf.date):isoToDmy(new Date().toISOString().slice(0,10))}"></div>
           </div>
           <div class="formrow2">
             <div class="field"><label>Vật tư</label>
               <select name="material" onchange="toggleKhoMaterialOther(this)">
-                ${KHO_MATERIALS.map(m=>`<option value="${esc(m.label)}" ${(editing?(editingIsOther?m.label==='Khác':editing.material===m.label):false)?'selected':''}>${esc(m.label)}</option>`).join('')}
+                ${KHO_MATERIALS.map(m=>`<option value="${esc(m.label)}" ${(pf?(pf.isOther?m.label==='Khác':pf.material===m.label):false)?'selected':''}>${esc(m.label)}</option>`).join('')}
               </select>
             </div>
-            <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="0.01" required autocomplete="off" value="${editing?editing.quantity:''}"></div>
+            <div class="field"><label>Số lượng</label><input type="number" name="quantity" min="0" step="0.01" required autocomplete="off" value="${pf&&pf.quantity!=null&&pf.quantity!==''?pf.quantity:''}"></div>
           </div>
           <div class="field kho-other-row" style="${editingIsOther?'':'display:none;'}">
-            <label>Tên vật tư khác</label><input name="materialOther" autocomplete="off" oninput="toggleKhoPalletOther(this)" value="${editingIsOther?esc(editing.material):''}">
+            <label>Tên vật tư khác</label><input name="materialOther" autocomplete="off" oninput="toggleKhoPalletOther(this)" value="${editingIsOther?esc(pf.materialOther):''}">
           </div>
-          <div class="field kho-pallet-row" style="${editing&&isBrickMaterial(editing.material)?'':'display:none;'}">
-            <label>Số lượng pallet (cái)</label><input type="number" name="pallets" min="0" step="1" autocomplete="off" value="${editing&&editing.pallets?editing.pallets:''}">
+          <div class="field kho-pallet-row" style="${pf&&isBrickMaterial(pf.isOther?pf.materialOther:pf.material)?'':'display:none;'}">
+            <label>Số lượng pallet (cái)</label><input type="number" name="pallets" min="0" step="1" autocomplete="off" value="${pf&&pf.pallets?pf.pallets:''}">
           </div>
           <div class="formrow2">
             <div class="field"><label>Đơn vị tính</label>
               <select name="unit" onchange="toggleKhoUnitOther(this)">
-                ${UNIT_OPTIONS.map(u=>`<option value="${esc(u)}" ${editing&&editing.unit===u?'selected':''}>${esc(u)}</option>`).join('')}
+                ${UNIT_OPTIONS.map(u=>`<option value="${esc(u)}" ${pf&&pf.unit===u?'selected':''}>${esc(u)}</option>`).join('')}
                 <option value="Khác" ${editingUnitIsOther?'selected':''}>Khác</option>
               </select>
             </div>
-            <div class="field kho-unit-other-row" style="${editingUnitIsOther?'':'display:none;'}"><label>Đơn vị khác</label><input name="unitOther" value="${editingUnitIsOther?esc(editing.unit):''}"></div>
+            <div class="field kho-unit-other-row" style="${editingUnitIsOther?'':'display:none;'}"><label>Đơn vị khác</label><input name="unitOther" value="${editingUnitIsOther?esc(pf.unitOther):''}"></div>
           </div>
-          <div class="field kho-team-row" style="${(!editing||editing.direction==='xuat')?'':'display:none;'}">
-            <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ 1 - Anh Bình" value="${editing?esc(editing.team):''}">
+          <div class="field kho-team-row" style="${(!pf||pf.direction==='xuat')?'':'display:none;'}">
+            <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ 1 - Anh Bình" value="${pf?esc(pf.team):''}">
           </div>
-          <div class="field"><label>Ghi chú</label><input name="note" value="${editing?esc(editing.note):''}"></div>
+          <div class="field"><label>Ghi chú</label><input name="note" value="${pf?esc(pf.note):''}"></div>
           <div class="field">
             <label>Ảnh đính kèm (tối đa 10 ảnh, mỗi ảnh ≤5MB)</label>
             <input id="khoPhotoInput" type="file" accept="image/*" multiple onchange="onKhoPhotoInput(event)" ${state.khoPhotoDraft.length>=KHO_PHOTO_MAX?'disabled':''}>
@@ -2112,6 +2188,8 @@ function renderKhoChinh(){
                   <button type="button" onclick="removeKhoPhotoDraft(${i})">×</button>
                 </div>`).join('')}
             </div>
+            ${!editing?`<button id="khoAiBtn" class="btn" type="button" style="margin-top:8px;" ${state.khoAiAnalyzing||!state.khoPhotoDraft.some(p=>p.startsWith('data:'))?'disabled':''} onclick="analyzeKhoPhotoWithAi()">${state.khoAiAnalyzing?'Đang nhận diện…':'✨ Nhận diện bằng AI'}</button>
+            <div class="photo-hint">Nhận diện từ ảnh vừa thêm ở trên (chưa lưu) — AI chỉ điền sẵn, bạn vẫn cần kiểm tra lại trước khi lưu.</div>`:''}
             ${state.err.kho?`<div class="error-msg" id="khoPhotoErr">${esc(state.err.kho)}</div>`:'<span id="khoPhotoErr" hidden></span>'}
           </div>
           <div style="display:flex; gap:10px; margin-top:13px;">
