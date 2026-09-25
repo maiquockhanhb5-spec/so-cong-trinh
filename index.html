@@ -1861,8 +1861,8 @@ const KHO_TABS = [
 ];
 function toggleKhoDirFields(sel){
   const form = sel.closest('form');
-  const teamRow = form.querySelector('.kho-team-row');
-  if(teamRow) teamRow.style.display = sel.value==='xuat' ? '' : 'none';
+  const teamLabel = form.querySelector('.kho-team-label');
+  if(teamLabel) teamLabel.textContent = sel.value==='xuat' ? 'Nhà thầu / tổ đội nhận' : 'Nhà cung cấp (NCC)';
 }
 function toggleKhoPalletOther(input){
   const form = input.closest('form');
@@ -1935,7 +1935,7 @@ function kvtChinhCreateOrUpdate(e){
     date:normalizeDate(f.date.value), direction, material, unit,
     quantity: Math.max(0, Number(f.quantity.value)||0),
     pallets: isBrick ? Math.max(0, Number(f.pallets.value)||0) : 0,
-    team: direction==='xuat' ? f.team.value.trim() : '',
+    team: f.team.value.trim(),
     note: f.note.value.trim(),
     photos: state.khoPhotoDraft.slice()
   };
@@ -1996,6 +1996,7 @@ function applyAiMaterialResult(r){
     unitOther: UNIT_OPTIONS.includes(rawUnit) ? '' : rawUnit,
     quantity: (r.quantity!=null && r.quantity!=='') ? Number(r.quantity) : '',
     pallets: (r.pallets!=null && r.pallets!=='') ? Number(r.pallets) : '',
+    team: String(r.team||'').trim(),
     note: '[AI nhận diện — vui lòng kiểm tra lại]' + (r.note ? ' ' + r.note : '')
   };
 }
@@ -2111,7 +2112,7 @@ function renderKhoChinh(){
     direction: draft.direction||'nhap', date: draft.date || new Date().toISOString().slice(0,10),
     material: draft.material, materialOther: draft.materialOther||'', isOther: draft.material==='Khác',
     quantity: draft.quantity, pallets: draft.pallets, unit: draft.unit, unitOther: draft.unitOther||'',
-    unitIsOther: draft.unit==='Khác', team:'', note: draft.note||''
+    unitIsOther: draft.unit==='Khác', team: draft.team||'', note: draft.note||''
   } : null;
   const editingIsOther = !!(pf && pf.isOther);
   const editingUnitIsOther = !!(pf && pf.unitIsOther);
@@ -2173,8 +2174,9 @@ function renderKhoChinh(){
             </div>
             <div class="field kho-unit-other-row" style="${editingUnitIsOther?'':'display:none;'}"><label>Đơn vị khác</label><input name="unitOther" value="${editingUnitIsOther?esc(pf.unitOther):''}"></div>
           </div>
-          <div class="field kho-team-row" style="${(!pf||pf.direction==='xuat')?'':'display:none;'}">
-            <label>Nhà thầu / tổ đội nhận</label><input name="team" placeholder="VD: Tổ 1 - Anh Bình" value="${pf?esc(pf.team):''}">
+          <div class="field kho-team-row">
+            <label class="kho-team-label">${pf&&pf.direction==='xuat'?'Nhà thầu / tổ đội nhận':'Nhà cung cấp (NCC)'}</label>
+            <input name="team" placeholder="VD: Tổ 1 - Anh Bình, hoặc tên nhà cung cấp" value="${pf?esc(pf.team):''}">
           </div>
           <div class="field"><label>Ghi chú</label><input name="note" value="${pf?esc(pf.note):''}"></div>
           <div class="field">
