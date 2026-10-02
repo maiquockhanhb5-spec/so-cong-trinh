@@ -372,7 +372,8 @@
   .photo-strip{display:flex; align-items:center; gap:5px; margin-top:6px;}
   .photo-chip{width:26px; height:26px; border-radius:7px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex:none; transition:transform .14s ease, border-color .14s ease;}
   .photo-chip:hover{border-color:var(--accent); transform:scale(1.15);}
-  .photo-more{font-size:11px; color:var(--muted); font-weight:700;}
+  .photo-more{font-size:10.5px; color:var(--muted); font-weight:700; cursor:pointer; flex:none; width:26px; height:26px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); display:flex; align-items:center; justify-content:center; padding:0; font-family:inherit; transition:transform .14s ease, border-color .14s ease, color .14s ease;}
+  .photo-more:hover{border-color:var(--accent); color:var(--accent); transform:scale(1.15);}
 
   .total-row td{border-top:2px solid var(--line); background:var(--surface-2);}
 
@@ -380,6 +381,16 @@
   .lightbox-backdrop img{max-width:90vw; max-height:88vh; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.5); display:block;}
   .lightbox-close{position:fixed; top:20px; right:24px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.14); color:#fff; border:none; font-size:20px;}
   .lightbox-close:hover{background:rgba(255,255,255,.24);}
+  .lightbox-nav{position:fixed; top:50%; transform:translateY(-50%); width:46px; height:46px; border-radius:50%; background:rgba(255,255,255,.14); color:#fff; border:none; font-size:26px; line-height:1; display:flex; align-items:center; justify-content:center; z-index:101;}
+  .lightbox-nav:hover{background:rgba(255,255,255,.24);}
+  .lightbox-prev{left:16px;}
+  .lightbox-next{right:16px;}
+  .lightbox-counter{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.5); color:#fff; font-size:13px; padding:5px 14px; border-radius:999px; z-index:101;}
+  @media (max-width:560px){
+    .lightbox-nav{width:40px; height:40px; font-size:22px;}
+    .lightbox-prev{left:6px;}
+    .lightbox-next{right:6px;}
+  }
 
   @media (max-width:900px){
     .topnav{flex-wrap:wrap; padding:10px 16px; gap:10px;}
@@ -922,19 +933,41 @@ function renderKhoPhotoGrid(){
 }
 
 const LIGHTBOX_SOURCES = { construction:'construction', vatTuChinh:'vatTuChinh', vatTuPhu:'vatTuPhu', conKhauTru:'conKhauTru', conPhat:'conPhat' };
+function lightboxRow(){
+  if(!state.lightbox) return null;
+  return load(LS[LIGHTBOX_SOURCES[state.lightbox.source]||'construction'], []).find(r=>r.id===state.lightbox.recordId) || null;
+}
 function openLightbox(source, recordId, idx){
   const row = load(LS[LIGHTBOX_SOURCES[source]||'construction'], []).find(r=>r.id===recordId);
   if(!row || !row.photos || !row.photos[idx]) return;
-  state.lightboxSrc = row.photos[idx];
+  state.lightbox = { source, recordId, idx };
   renderLightbox();
 }
-function closeLightbox(){ state.lightboxSrc=null; renderLightbox(); }
+function closeLightbox(){ state.lightbox=null; renderLightbox(); }
+/* chuyển ảnh trước/sau trong CÙNG 1 bản ghi — vòng lặp (ảnh cuối -> ảnh đầu) */
+function lightboxStep(delta){
+  if(!state.lightbox) return;
+  const row = lightboxRow();
+  if(!row || !row.photos || !row.photos.length) return;
+  const n = row.photos.length;
+  state.lightbox.idx = (state.lightbox.idx + delta + n) % n;
+  renderLightbox();
+}
 function renderLightbox(){
-  document.getElementById('lightbox').innerHTML = state.lightboxSrc ? `
+  const wrap = document.getElementById('lightbox');
+  const row = lightboxRow();
+  const photos = (row && row.photos) || [];
+  if(!state.lightbox || !photos.length){ wrap.innerHTML=''; return; }
+  const idx = Math.min(state.lightbox.idx, photos.length-1);
+  const hasMultiple = photos.length>1;
+  wrap.innerHTML = `
     <div class="lightbox-backdrop" onclick="closeLightbox()">
-      <img src="${driveImgUrl(state.lightboxSrc)}" onclick="event.stopPropagation()" alt="Ảnh thi công phóng to">
+      ${hasMultiple?`<button class="lightbox-nav lightbox-prev" onclick="event.stopPropagation(); lightboxStep(-1)" aria-label="Ảnh trước">‹</button>`:''}
+      <img src="${driveImgUrl(photos[idx])}" onclick="event.stopPropagation()" alt="Ảnh phóng to">
+      ${hasMultiple?`<button class="lightbox-nav lightbox-next" onclick="event.stopPropagation(); lightboxStep(1)" aria-label="Ảnh sau">›</button>`:''}
+      ${hasMultiple?`<div class="lightbox-counter">${idx+1} / ${photos.length}</div>`:''}
       <button class="lightbox-close" onclick="closeLightbox()">×</button>
-    </div>` : '';
+    </div>`;
 }
 
 function conTabSwitch(tab){
@@ -1110,7 +1143,7 @@ const state = {
   phatPhotoDraft:[],
   conKtPeriod:'ngay',
   conPhatPeriod:'ngay',
-  lightboxSrc:null,
+  lightbox:null,
   syncStatus:'local',
   editingStartDate:false,
   thiCongTab:'tongquan',
@@ -2255,7 +2288,7 @@ function renderKhoChinh(){
               <td>${esc(r.material)}${r.photos && r.photos.length ? `
                 <div class="photo-strip">
                   ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('vatTuChinh',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
-                  ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
+                  ${r.photos.length>4?`<button type="button" class="photo-more" onclick="openLightbox('vatTuChinh',${r.id},4)">+${r.photos.length-4}</button>`:''}
                 </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
               <td class="num">${r.pallets?r.pallets.toLocaleString('vi-VN')+' cái':'—'}</td>
@@ -2461,7 +2494,7 @@ function renderKhoPhu(){
               <td><b>${esc(r.itemName)}</b>${r.note?`<div style="color:var(--muted); font-size:12px; margin-top:2px;">${esc(r.note)}</div>`:''}${r.photos && r.photos.length ? `
                 <div class="photo-strip">
                   ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('vatTuPhu',${r.id},${i})" alt="Ảnh vật tư">`).join('')}
-                  ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
+                  ${r.photos.length>4?`<button type="button" class="photo-more" onclick="openLightbox('vatTuPhu',${r.id},4)">+${r.photos.length-4}</button>`:''}
                 </div>` : ''}</td>
               <td class="num">${(r.quantity||0).toLocaleString('vi-VN')} ${esc(r.unit)}</td>
               <td class="num">${r.direction==='nhap'&&r.price?vnd(r.price):'—'}</td>
@@ -2882,7 +2915,7 @@ function photoStripHtml(source, r){
   if(!ph.length) return '';
   return `<div class="photo-strip">
     ${ph.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('${source}',${r.id},${i})" alt="Ảnh đính kèm">`).join('')}
-    ${ph.length>4?`<span class="photo-more">+${ph.length-4}</span>`:''}
+    ${ph.length>4?`<button type="button" class="photo-more" onclick="openLightbox('${source}',${r.id},4)">+${ph.length-4}</button>`:''}
   </div>`;
 }
 const SUB_SAVE_FULL_MSG = 'Không thể lưu — bộ nhớ trình duyệt đã đầy. Hãy xoá bớt ảnh hoặc bản ghi cũ rồi thử lại.';
@@ -3512,7 +3545,7 @@ function renderThiCongBaoCao(allRows){
                 ${r.photos && r.photos.length ? `
                 <div class="photo-strip">
                   ${r.photos.slice(0,4).map((src,i)=>`<img src="${driveImgUrl(src)}" class="photo-chip" onclick="openLightbox('construction',${r.id},${i})" alt="Ảnh thi công">`).join('')}
-                  ${r.photos.length>4?`<span class="photo-more">+${r.photos.length-4}</span>`:''}
+                  ${r.photos.length>4?`<button type="button" class="photo-more" onclick="openLightbox('construction',${r.id},4)">+${r.photos.length-4}</button>`:''}
                 </div>` : ''}
               </td>
               <td><span class="chip chip-task">${esc(r.task)}</span></td>
