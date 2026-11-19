@@ -1537,22 +1537,51 @@ function khoStockSummary(rows, nameKey){
   });
   return Object.values(map).map(m=>({...m, ton: m.nhap - m.xuat}));
 }
+/* nhắc báo cáo quân số (giống email nhắc của backend): sau 11:00 / 16:30, tổ có báo cáo trong 7 ngày
+   gần đây mà hôm nay chưa có quân số buổi đó. Chỉ hiện cho Quản trị viên + Editor có quyền Thi công. */
+const NHAC_MOC = { sang: [11, 0], chieu: [16, 30] };
+function quanSoReminders(){
+  const s = getSession();
+  if(!s) return [];
+  const mods = s.modules || [];
+  if(!(s.role==='admin' || (s.role!=='viewer' && mods.includes('thi_cong')))) return [];
+  const now = new Date(), mins = now.getHours()*60 + now.getMinutes();
+  const today = localISO(now), from7 = isoShift(today, -7);
+  const rows = load(LS.construction, []);
+  const isCN = t => /công nhật/i.test(String(t||''));
+  const dangLam = [...new Set(rows.filter(r => r.date>=from7 && r.date<today && r.team && !isCN(r.team)).map(r => String(r.team).trim()))].sort();
+  const out = [];
+  [['sang','buổi sáng','workersAm'], ['chieu','buổi chiều','workersPm']].forEach(([k, ten, field]) => {
+    if(mins < NHAC_MOC[k][0]*60 + NHAC_MOC[k][1]) return;
+    const daBao = new Set(rows.filter(r => r.date===today && Number(r[field])>0).map(r => String(r.team||'').trim()));
+    const thieu = dangLam.filter(t => !daBao.has(t));
+    if(thieu.length) out.push({ buoi:k, ten, thieu });
+  });
+  return out;
+}
+function openQuanSoReport(){ state.notifOpen=false; go('thi_cong'); state.thiCongTab='baocao'; render(); }
 function renderNotif(){
   const wrap = document.getElementById('notifWrap');
   const lowStock = khoAlerts();
+  const nhac = quanSoReminders();
+  const count = lowStock.length + nhac.length;
   wrap.innerHTML = `
     <button class="bell" onclick="toggleNotif(event)">
       <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;">${BELL_ICON}</svg>
-      ${lowStock.length?`<span class="badge">${lowStock.length}</span>`:''}
+      ${count?`<span class="badge">${count}</span>`:''}
     </button>
     ${state.notifOpen?`
     <div class="notif-panel">
+      ${nhac.length?`
+      <div class="notif-head">Nhắc báo cáo quân số — hôm nay</div>
+      ${nhac.map(n=>`<div class="notif-row" style="flex-direction:column; gap:2px; cursor:pointer;" onclick="openQuanSoReport()"><b style="color:#fb7185;">Chưa báo cáo ${esc(n.ten)}: ${n.thieu.length} tổ</b><span style="color:var(--muted); font-size:12px;">${esc(n.thieu.join(', '))}</span><span style="color:#f5a524; font-size:12px; font-weight:700;">Bấm để báo cáo →</span></div>`).join('')}`:''}
       <div class="notif-head">Cảnh báo kho — ${esc((currentProject()||{}).name||'')}</div>
       ${lowStock.length===0?`<div class="notif-empty">Không có cảnh báo nào.</div>`:
         lowStock.map(a=>`<div class="notif-row" style="flex-direction:column; gap:2px;"><b style="color:${a.level==='danger'?'#f87171':'#fbbf24'};">${esc(a.name)}</b><span style="color:var(--muted); font-size:12px;">${esc(a.text)}</span></div>`).join('')}
     </div>`:''}
   `;
 }
+setInterval(()=>{ try{ if(document.getElementById('notifWrap') && getSession()) renderNotif(); }catch(e){} }, 5*60*1000);
 function toggleNotif(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; state.profileOpen=false; renderNotif(); renderProfileMenu(); }
 document.addEventListener('click', ()=>{
   if(state.notifOpen){ state.notifOpen=false; renderNotif(); }
@@ -4594,11 +4623,29 @@ async function adminCreateUser(e){
   if(modules.length===0){ state.err.admin='Chọn ít nhất 1 module được phép truy cập.'; render(); return false; }
   const role = f.role.value==='viewer' ? 'viewer' : 'editor';
   const projects = Array.from(f.querySelectorAll('input[name="projects"]:checked')).map(el=>el.value);
-  const newUser = { username, password: await sha256Hex(f.password.value), role, module:modules.join(','), fullName:f.fullName.value.trim(), projects:projects.join(',') };
+  const email = f.email.value.trim();
+  if(email && !isEmail(email)){ state.err.admin='Email không đúng định dạng.'; render(); return false; }
+  const newUser = { username, password: await sha256Hex(f.password.value), role, module:modules.join(','), fullName:f.fullName.value.trim(), projects:projects.join(','), email };
   users.push(newUser);
   save(LS.users, users);
   syncWrite('saveUser', {data: newUser});
   state.err.admin=null;
+  render();
+  return false;
+}
+function isEmail(s){ return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(String(s||'').trim()); }
+function adminEditEmail(username){ state.editingUserEmail = state.editingUserEmail===username ? null : username; state.err.adminEmail=null; render(); }
+function adminSaveEmail(e, username){
+  e.preventDefault();
+  const email = e.target.email.value.trim();
+  if(email && !isEmail(email)){ state.err.adminEmail='Email không đúng định dạng.'; render(); return false; }
+  const users = load(LS.users, []);
+  const idx = users.findIndex(u=>u.username===username);
+  if(idx===-1) return false;
+  users[idx] = {...users[idx], email};
+  save(LS.users, users);
+  syncWrite('saveUser', {data: users[idx]});
+  state.editingUserEmail = null; state.err.adminEmail=null;
   render();
   return false;
 }
@@ -4791,6 +4838,14 @@ function renderAdminAccounts(users){
                 <div class="name">${esc(u.fullName)} <span style="color:var(--muted); font-weight:500;">(${esc(u.username)})</span></div>
                 <div class="meta">${u.role==='admin'?'Quản trị viên · Toàn quyền':(u.role==='viewer'?'Viewer · Chỉ xem':'Editor · Được thêm/sửa/xoá')+' · '+ (mods.length?mods.map(m=>MODULES[m]?MODULES[m].short:m).join(', '):'Chưa gán quyền')}</div>
                 ${u.role==='admin'?'':`<div class="meta">Công trình: ${prjs.length?esc(projectNames(prjs)):'Tất cả'}</div>`}
+                ${state.editingUserEmail===u.username ? `
+                <form onsubmit="return adminSaveEmail(event,'${u.username}')" style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+                  <input name="email" type="email" value="${esc(u.email||'')}" placeholder="ten@gmail.com" style="flex:1; min-width:180px; background:var(--surface-2); border:1px solid var(--line); border-radius:8px; color:var(--ink); padding:7px 10px; font-family:inherit; font-size:13px;">
+                  <button class="btn btn-accent" type="submit" style="padding:6px 12px; font-size:12px;">Lưu</button>
+                  <button class="link-btn" type="button" onclick="adminEditEmail('${u.username}')">Huỷ</button>
+                  ${state.err.adminEmail?`<div class="error-msg" style="width:100%;">${esc(state.err.adminEmail)}</div>`:''}
+                </form>` : `
+                <div class="meta">Email nhắc quân số: ${u.email?esc(u.email):'<i>chưa có</i>'} <button class="link-btn" onclick="adminEditEmail('${u.username}')">${u.email?'Sửa':'Thêm'} email</button></div>`}
               </div>
               ${u.role==='admin' ? `<span class="chip chip-neutral">Bảo vệ</span>` : (isEditing ? `
                 <form onsubmit="return adminSaveUserModules(event,'${u.username}')">
@@ -4826,6 +4881,7 @@ function renderAdminAccounts(users){
               <div class="field"><label>Họ tên</label><input name="fullName" required></div>
               <div class="field"><label>Tên đăng nhập</label><input name="username" required></div>
               <div class="field"><label>Mật khẩu</label><input name="password" type="text" required></div>
+              <div class="field"><label>Email (nhận nhắc báo cáo quân số — có thể để trống)</label><input name="email" type="email" placeholder="ten@gmail.com"></div>
               <div class="field"><label>Quyền truy cập</label>
                 <select name="role">
                   <option value="editor">Editor (được thêm/sửa/xoá)</option>
