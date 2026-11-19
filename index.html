@@ -234,7 +234,26 @@
       radial-gradient(30% 70% at 15% 50%, var(--b1), transparent 70%),
       radial-gradient(30% 70% at 50% 45%, var(--b2), transparent 70%),
       radial-gradient(30% 70% at 85% 55%, var(--b3), transparent 70%);}
+  .glass-stage.gx::before{background:var(--blobs);}
   .glass-stage .kpi-grid{margin-bottom:0;}
+  /* ô kpi-card cũ đặt trong .glass-stage → tự thành kính mờ, màu nhấn theo lớp màu */
+  .glass-stage .kpi-blue{--acc:#38bdf8;} .glass-stage .kpi-orange{--acc:#f5a524;} .glass-stage .kpi-purple{--acc:#a78bfa;}
+  .glass-stage .kpi-green{--acc:#34d399;} .glass-stage .kpi-red{--acc:#fb7185;}
+  .glass-stage .kpi-card{border-radius:18px; min-height:132px;
+    background:linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.04));
+    -webkit-backdrop-filter:blur(16px) saturate(150%); backdrop-filter:blur(16px) saturate(150%);
+    border:1px solid rgba(255,255,255,.14); box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 10px 30px -14px rgba(0,0,0,.7);}
+  .glass-stage .kpi-card:hover{border-color:color-mix(in srgb, var(--acc) 55%, transparent); box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 16px 36px -12px color-mix(in srgb, var(--acc) 45%, transparent);}
+  .glass-stage .kpi-card::before{background:radial-gradient(120px 120px at calc(100% + 10px) -20px, color-mix(in srgb, var(--acc) 40%, transparent), transparent 70%);}
+  .glass-stage .kpi-label{color:rgba(255,255,255,.88);}
+  .glass-stage .kpi-icon{background:color-mix(in srgb, var(--acc) 22%, transparent); color:var(--acc); box-shadow:0 0 12px color-mix(in srgb, var(--acc) 35%, transparent);}
+  .glass-stage .kpi-value{color:var(--acc); text-shadow:0 0 18px color-mix(in srgb, var(--acc) 45%, transparent);}
+  .glass-stage .kpi-trend{background:rgba(255,255,255,.12); color:rgba(255,255,255,.9);}
+  .glass-stage .kpi-trend.up{background:rgba(34,197,94,.22); color:#bbf7d0;}
+  .glass-stage .kpi-trend.down{background:rgba(239,68,68,.25); color:#fecaca;}
+  .kpi-card.no-spark{padding-bottom:18px;}
+  .glass-stage .cols-5 .kpi-value{font-size:clamp(17px, 1.35vw, 22px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  @media (max-width:1280px){ .glass-stage .cols-5 .kpi-value{font-size:22px;} }
   .gkpi{position:relative; overflow:hidden; border-radius:18px; padding:16px 18px 58px; min-height:132px; color:#fff;
     background:linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.04));
     -webkit-backdrop-filter:blur(16px) saturate(150%); backdrop-filter:blur(16px) saturate(150%);
@@ -1655,11 +1674,11 @@ function kpiCard(id, cls, label, value, badge, icon, trendDir, loading){
         <span class="skeleton-bar" style="width:44px;"></span>
       </div>
       <div class="kpi-value num"><span class="skeleton-bar" style="width:70%;"></span></div>
-      <canvas class="kpi-spark" id="${id}"></canvas>
+      ${id?`<div class="kpi-spark"><canvas id="${id}"></canvas></div>`:''}
     </div>`;
   }
   return `
-  <div class="kpi-card ${cls}">
+  <div class="kpi-card ${cls}${id?'':' no-spark'}">
     <div class="kpi-top">
       <div class="kpi-top-left">
         ${icon?`<span class="kpi-icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>`:''}
@@ -1668,8 +1687,16 @@ function kpiCard(id, cls, label, value, badge, icon, trendDir, loading){
       ${badge?`<span class="kpi-trend${trendClass}">${esc(badge)}</span>`:''}
     </div>
     <div class="kpi-value num">${esc(value)}</div>
-    <canvas class="kpi-spark" id="${id}"></canvas>
+    ${id?`<div class="kpi-spark"><canvas id="${id}"></canvas></div>`:''}
   </div>`;
+}
+/* bọc lưới kpi-card trong nền loang màu kính mờ — màu loang lấy theo lớp màu của từng ô */
+const KPI_ACC = { 'kpi-blue':'#38bdf8', 'kpi-orange':'#f5a524', 'kpi-purple':'#a78bfa', 'kpi-green':'#34d399', 'kpi-red':'#fb7185' };
+function glassGrid(gridClass, cardsHtml){
+  const accs = [...cardsHtml.matchAll(/class="kpi-card (kpi-\w+)/g)].map(m => KPI_ACC[m[1]] || '#38bdf8');
+  const n = accs.length || 1, w = Math.round(70/n + 8);
+  const blobs = accs.map((c,i) => `radial-gradient(${w}% 70% at ${((i+.5)/n*100).toFixed(1)}% 50%, ${c}80, transparent 70%)`).join(', ');
+  return `<div class="glass-stage gx" style="--blobs:${blobs}"><div class="kpi-grid ${gridClass}">${cardsHtml}</div></div>`;
 }
 /* so sánh cùng kỳ tháng trước — invertSentiment=true khi "tăng" là điều không mong muốn (VD chi phí) */
 function pctBadge(curr, prev, invertSentiment){
@@ -1712,6 +1739,11 @@ function mountSparklines(list){
     if(!el) return null;
     const data = padSeries(item.data);
     let fillBg = 'rgba(255,255,255,.16)';
+    if(!item.color && el.closest('.glass-stage')){ /* ô kính mờ: đường biểu đồ theo màu nhấn của ô */
+      const card = el.closest('.kpi-card, .gkpi');
+      const acc = card ? getComputedStyle(card).getPropertyValue('--acc').trim() : '';
+      if(/^#[0-9a-f]{6}$/i.test(acc)) item = {...item, color: acc};
+    }
     if(item.color){
       const g = el.getContext('2d').createLinearGradient(0, 0, 0, el.clientHeight || 52);
       g.addColorStop(0, item.color + '66'); g.addColorStop(1, item.color + '00');
@@ -2116,13 +2148,12 @@ function renderFinance(){
       </div>
     </div>
 
-    <div class="kpi-grid cols-5">
+    ${glassGrid('cols-5', `
       ${kpiCard('spark-f0','kpi-green','Tổng thu', vnd(totalThu), thuBadge.text, TREND_UP_ICON, thuBadge.dir, isLoadingKpi)}
       ${kpiCard('spark-f1','kpi-orange','Tổng chi', vnd(totalChi), chiBadge.text, TREND_DOWN_ICON, chiBadge.dir, isLoadingKpi)}
       ${kpiCard('spark-f2','kpi-blue','Tồn quỹ', vnd(tonQuy), netBadge.text, WALLET_ICON, netBadge.dir, isLoadingKpi)}
       ${kpiCard('spark-f3','kpi-purple','Tổng giao dịch', String(allRows.length)+' giao dịch', countBadge.text, DOC_ICON, countBadge.dir, isLoadingKpi)}
-      ${kpiCard('spark-f4','kpi-red','Thuế (8% tổng thu)', vnd(thueAmount), '8% × '+vnd(totalThu), PERCENT_ICON, '', isLoadingKpi)}
-    </div>
+      ${kpiCard('spark-f4','kpi-red','Thuế (8% tổng thu)', vnd(thueAmount), '8% × '+vnd(totalThu), PERCENT_ICON, '', isLoadingKpi)}`)}
 
     ${state.formOpen.tai_chinh ? `
     <div class="card" style="margin-bottom:16px;">
@@ -4191,11 +4222,10 @@ function renderNhanSuCT(){
       </div>
     </div>
 
-    <div class="kpi-grid cols-3">
+    ${glassGrid('cols-3', `
       ${kpiCard('spark-sc0','kpi-blue','Tổng nhân sự', String(allRows.length))}
       ${kpiCard('spark-sc1','kpi-green','Đang làm việc', String(activeCount), allRows.length+' tổng')}
-      ${kpiCard('spark-sc2','kpi-purple','Quỹ lương / tháng', vnd(totalSalary), activeCount+' người')}
-    </div>
+      ${kpiCard('spark-sc2','kpi-purple','Quỹ lương / tháng', vnd(totalSalary), activeCount+' người')}`)}
 
     ${state.formOpen.nhansu_ct ? `
     <div class="card" style="margin-bottom:16px;">
@@ -4348,11 +4378,10 @@ function renderNhanSuTD(){
       </div>
     </div>
 
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-st0','kpi-blue','Tổng công nhân', String(allRows.length))}
+    ${glassGrid('cols-3', `
+      ${kpiCard('spark-st0','kpi-orange','Tổng công nhân', String(allRows.length))}
       ${kpiCard('spark-st1','kpi-purple','Số tổ đội', String(teamCount), allRows.length+' người')}
-      ${kpiCard('spark-st2','kpi-green','Đang làm việc', String(activeCount), allRows.length+' tổng')}
-    </div>
+      ${kpiCard('spark-st2','kpi-green','Đang làm việc', String(activeCount), allRows.length+' tổng')}`)}
 
     ${state.formOpen.nhansu_td ? `
     <div class="card" style="margin-bottom:16px;">
@@ -5048,12 +5077,11 @@ function renderPaySummary(){
       </select>
       <span style="font-size:12px; color:var(--muted-2); margin-left:auto;">${startCong?`Tiền công/công tính từ <b style="color:var(--ink);">${periodLabel(startCong)}</b> (đủ báo cáo quân số) · `:''}Bill nghiệm thu thường chậm hơn ngày làm → <b style="color:var(--ink);">số lũy kế</b> chính xác hơn từng kỳ.</span>
     </div>
-    <div class="kpi-grid">
+    ${glassGrid('', `
       ${kpiCard('', 'kpi-blue', period?'Giá trị bill '+(periodText||'kỳ'):'Giá trị bill lũy kế', vndShort(period?tot.billKy:tot.billLk)+' đ', period?'Lũy kế '+vndShort(tot.billLk):'', WALLET_ICON)}
       ${kpiCard('', 'kpi-orange', 'Đã tạm ứng (lũy kế)', vndShort(tot.daUng)+' đ', '', TREND_DOWN_ICON)}
       ${kpiCard('', tot.con<0?'kpi-red':'kpi-green', 'Còn được ứng (tổng)', vndShort(tot.con)+' đ', overAdv.length?overAdv.length+' tổ ứng vượt':'', TREND_UP_ICON)}
-      ${kpiCard('', 'kpi-purple', 'Tiền công/công (mức giữa)', med?vndShort(med)+' đ':'—', vndShort(tot.cong)+' công', PERCENT_ICON)}
-    </div>
+      ${kpiCard('', 'kpi-purple', 'Tiền công/công (mức giữa)', med?vndShort(med)+' đ':'—', vndShort(tot.cong)+' công', PERCENT_ICON)}`)}
     ${overAdv.length?`<div class="error-msg" style="margin:-4px 0 16px;">⚠ Ứng vượt giá trị đã làm: ${overAdv.map(r=>`<b>${esc(r.team)}</b> (${vndShort(-r.conDuocUng)} đ)`).join(', ')}</div>`:''}
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head"><h3>Theo từng tổ đội</h3><span style="font-size:12px; color:var(--muted);">${rows.length} tổ</span></div>
