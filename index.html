@@ -1073,6 +1073,8 @@ function renderConPhotoGrid(){
     </div>`).join('');
   const input = document.getElementById('conPhotoInput');
   if(input) input.disabled = state.conPhotoDraft.length>=6;
+  const err = document.getElementById('conPhotoErr');
+  if(err && state.conPhotoDraft.length) err.style.display='none';
 }
 
 const KHO_PHOTO_MAX = 10;
@@ -2897,6 +2899,12 @@ function toggleConTeamOther(sel){
 function conCreateOrUpdate(e){
   e.preventDefault();
   const f = e.target;
+  if(!state.conPhotoDraft.length){
+    const msg = document.getElementById('conPhotoErr');
+    if(msg){ msg.style.display=''; msg.scrollIntoView({block:'center', behavior:'smooth'}); }
+    else alert('Báo cáo không có ảnh sẽ không được lưu. Hãy chọn ít nhất 1 ảnh.');
+    return;
+  }
   const rows = load(LS.construction, []);
   const workersAm = Math.max(0, Number(f.workersAm.value)||0);
   const workersPm = Math.max(0, Number(f.workersPm.value)||0);
@@ -3707,9 +3715,10 @@ function renderThiCongBaoCao(allRows){
           <div class="field"><label>Người báo cáo</label><input name="reportedBy" placeholder="Tên người báo cáo" value="${esc(defaultReporter)}"></div>
           <div class="field"><label>Nội dung công việc</label><textarea name="note" rows="3" placeholder="Mô tả công việc trong ngày...">${editing?esc(editing.note):''}</textarea></div>
           <div class="field">
-            <label>Ảnh thi công hôm nay</label>
+            <label>Ảnh thi công hôm nay <span style="color:#c0392b">* bắt buộc</span></label>
             <input id="conPhotoInput" type="file" accept="image/*" multiple onchange="onConPhotoInput(event)" ${state.conPhotoDraft.length>=6?'disabled':''}>
-            <div class="photo-hint">Tối đa 6 ảnh mỗi bản ghi — ảnh sẽ được thu nhỏ trước khi lưu.</div>
+            <div class="photo-hint">Bắt buộc ít nhất 1 ảnh, tối đa 6 ảnh mỗi bản ghi — ảnh sẽ được thu nhỏ trước khi lưu.</div>
+            <div id="conPhotoErr" class="error-msg" style="display:none">Chưa có ảnh hiện trường — báo cáo không có ảnh sẽ không được lưu. Hãy chọn ít nhất 1 ảnh.</div>
             <div class="photo-grid" id="conPhotoGrid">
               ${state.conPhotoDraft.map((src,i)=>`
                 <div class="photo-thumb">
