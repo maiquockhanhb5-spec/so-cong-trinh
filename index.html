@@ -230,6 +230,10 @@
       radial-gradient(26% 70% at 37% 40%, rgba(34,211,238,.45), transparent 70%),
       radial-gradient(26% 70% at 63% 60%, rgba(167,139,250,.5), transparent 70%),
       radial-gradient(28% 70% at 90% 45%, rgba(251,113,133,.5), transparent 70%);}
+  .glass-stage.g3::before{background:
+      radial-gradient(30% 70% at 15% 50%, var(--b1), transparent 70%),
+      radial-gradient(30% 70% at 50% 45%, var(--b2), transparent 70%),
+      radial-gradient(30% 70% at 85% 55%, var(--b3), transparent 70%);}
   .glass-stage .kpi-grid{margin-bottom:0;}
   .gkpi{position:relative; overflow:hidden; border-radius:18px; padding:16px 18px 58px; min-height:132px; color:#fff;
     background:linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.04));
@@ -1679,7 +1683,17 @@ function pctBadge(curr, prev, invertSentiment){
   return { text:(arrowUp?'▲ ':'▼ ')+Math.abs(pct)+'%', dir };
 }
 /* ô thống kê kính mờ — acc: màu nhấn (hex #rrggbb) */
-function glassKpi(id, acc, label, value, unit, sub, badge, badgeDir){
+/* khung nền loang màu cho 3 ô kính mờ — accs: 3 màu hex theo thứ tự ô */
+function glassStage3(accs, cardsHtml){
+  return `<div class="glass-stage g3" style="--b1:${accs[0]}8c; --b2:${accs[1]}80; --b3:${accs[2]}8c;"><div class="kpi-grid cols-3">${cardsHtml}</div></div>`;
+}
+function glassKpi(id, acc, label, value, unit, sub, badge, badgeDir, loading){
+  if(loading) return `
+  <div class="gkpi" style="--acc:${acc}">
+    <div class="gkpi-top"><span class="gkpi-label"><span class="gkpi-dot"></span>${esc(label)}</span></div>
+    <div class="gkpi-value num"><span class="skeleton-bar" style="width:70%;"></span></div>
+    <div class="gkpi-spark"><canvas id="${id}"></canvas></div>
+  </div>`;
   return `
   <div class="gkpi" style="--acc:${acc}">
     <div class="gkpi-top">
@@ -3068,6 +3082,15 @@ function conChart(rows){
 }
 /* màu nhấn 4 ô Tổng quan thi công: vàng cam (thương hiệu), xanh ngọc, tím, hồng */
 const TQ_ACC = ['#f5a524', '#22d3ee', '#a78bfa', '#fb7185'];
+const QS_ACC = ['#22d3ee', '#34d399', '#a78bfa'];   // báo cáo quân số: xanh ngọc, lục bảo, tím
+const KT_ACC = ['#f5a524', '#38bdf8', '#e879f9'];   // công nhật khấu trừ: vàng cam, xanh trời, hồng tím
+const PH_ACC = ['#fb7185', '#fbbf24', '#a78bfa'];   // phạt thi công: hồng đỏ, vàng, tím
+/* gộp theo ngày cho biểu đồ nhỏ mượt (mode 'max' = lấy giá trị lớn nhất trong ngày) */
+function dailySeries(rows, valFn, mode){
+  const m = {};
+  rows.forEach(r => { const d = r.date||''; const v = valFn(r); m[d] = m[d]===undefined ? v : (mode==='max' ? Math.max(m[d], v) : m[d]+v); });
+  return Object.keys(m).sort().map(d => m[d]);
+}
 function localISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function isoShift(iso, days){ const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return localISO(d); }
 const ddmm = iso => String(iso).slice(8,10)+'/'+String(iso).slice(5,7);
@@ -3404,11 +3427,10 @@ function renderThiCongKhauTru(){
   const asc = allRows.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
   sub.innerHTML = `
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-kt0','kpi-orange','Tổng tiền khấu trừ', vnd(totalAmount), targetCount+' tổ bị khấu trừ', '', '', isLoadingKpi)}
-      ${kpiCard('spark-kt1','kpi-blue','Tổng số công khấu trừ', fmtDays(totalDays)+' công', '', '', '', isLoadingKpi)}
-      ${kpiCard('spark-kt2','kpi-purple','Số lượt khấu trừ', String(allRows.length)+' lượt', '', '', '', isLoadingKpi)}
-    </div>
+    ${glassStage3(KT_ACC,
+      glassKpi('spark-kt0', KT_ACC[0], 'Tổng tiền khấu trừ', vnd(totalAmount), '', 'Cộng dồn các lượt khấu trừ', targetCount+' tổ bị khấu trừ', '', isLoadingKpi) +
+      glassKpi('spark-kt1', KT_ACC[1], 'Tổng số công khấu trừ', fmtDays(totalDays), 'công', 'Công nhật chuyển giữa các tổ', '', '', isLoadingKpi) +
+      glassKpi('spark-kt2', KT_ACC[2], 'Số lượt khấu trừ', String(allRows.length), 'lượt', 'Số bản ghi khấu trừ đã nhập', '', '', isLoadingKpi))}
 
     ${state.formOpen.con_kt ? `
     <div class="card" style="margin-bottom:16px;">
@@ -3489,9 +3511,9 @@ function renderThiCongKhauTru(){
     </div>
   `;
   mountSparklines([
-    {id:'spark-kt0', data:asc.map(r=>r.amount||0)},
-    {id:'spark-kt1', data:asc.map(r=>r.days||0)},
-    {id:'spark-kt2', data:asc.map((_,i)=>i+1)}
+    {id:'spark-kt0', data:dailySeries(asc, r=>r.amount||0), color:KT_ACC[0]},
+    {id:'spark-kt1', data:dailySeries(asc, r=>r.days||0), color:KT_ACC[1]},
+    {id:'spark-kt2', data:asc.map((_,i)=>i+1), color:KT_ACC[2]}
   ]);
   mountSubLineCharts('conKt', allRows, { field2:'days', label2:'Số công', color1:'#f59e0b', teamKey:'targetTeam' });
 }
@@ -3542,11 +3564,10 @@ function renderThiCongPhat(){
   const asc = allRows.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
   sub.innerHTML = `
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-ph0','kpi-red','Tổng tiền phạt', vnd(totalAmount), teamCount+' tổ đội bị phạt', '', '', isLoadingKpi)}
-      ${kpiCard('spark-ph1','kpi-blue','Tổng số lượng', fmtDays(totalQty), '', '', '', isLoadingKpi)}
-      ${kpiCard('spark-ph2','kpi-purple','Số lượt phạt', String(allRows.length)+' lượt', '', '', '', isLoadingKpi)}
-    </div>
+    ${glassStage3(PH_ACC,
+      glassKpi('spark-ph0', PH_ACC[0], 'Tổng tiền phạt', vnd(totalAmount), '', 'Cộng dồn các lượt phạt', teamCount+' tổ đội bị phạt', teamCount?'down':'', isLoadingKpi) +
+      glassKpi('spark-ph1', PH_ACC[1], 'Tổng số lượng', fmtDays(totalQty), '', 'Tổng số lượng vi phạm đã ghi', '', '', isLoadingKpi) +
+      glassKpi('spark-ph2', PH_ACC[2], 'Số lượt phạt', String(allRows.length), 'lượt', 'Số bản ghi phạt đã nhập', '', '', isLoadingKpi))}
 
     ${state.formOpen.con_phat ? `
     <div class="card" style="margin-bottom:16px;">
@@ -3618,9 +3639,9 @@ function renderThiCongPhat(){
     </div>
   `;
   mountSparklines([
-    {id:'spark-ph0', data:asc.map(r=>r.amount||0)},
-    {id:'spark-ph1', data:asc.map(r=>r.quantity||0)},
-    {id:'spark-ph2', data:asc.map((_,i)=>i+1)}
+    {id:'spark-ph0', data:dailySeries(asc, r=>r.amount||0), color:PH_ACC[0]},
+    {id:'spark-ph1', data:dailySeries(asc, r=>r.quantity||0), color:PH_ACC[1]},
+    {id:'spark-ph2', data:asc.map((_,i)=>i+1), color:PH_ACC[2]}
   ]);
   mountSubLineCharts('conPhat', allRows, { field2:'quantity', label2:'Số lượng', color1:'#ef4444', teamKey:'team' });
 }
@@ -3973,11 +3994,10 @@ function renderThiCongQuanSo(allRows){
   const totalCong = allWorkers.reduce((a,b)=>a+b,0);
 
   sub.innerHTML = `
-    <div class="kpi-grid cols-3">
-      ${kpiCard('spark-q0','kpi-blue','Công trung bình / ngày', formatCong(avgAll), teams.length+' tổ đội')}
-      ${kpiCard('spark-q1','kpi-green','Công cao nhất / ngày', formatCong(maxAll))}
-      ${kpiCard('spark-q2','kpi-purple','Tổng công', formatCong(totalCong))}
-    </div>
+    ${glassStage3(QS_ACC,
+      glassKpi('spark-q0', QS_ACC[0], 'Công trung bình / ngày', formatCong(avgAll), 'công', 'Trung bình mỗi báo cáo tổ đội', teams.length+' tổ đội', '') +
+      glassKpi('spark-q1', QS_ACC[1], 'Công cao nhất / ngày', formatCong(maxAll), 'công', 'Báo cáo tổ đội có quân số lớn nhất', '', '') +
+      glassKpi('spark-q2', QS_ACC[2], 'Tổng công', formatCong(totalCong), 'công', 'Cộng dồn các báo cáo đang lọc', '', ''))}
     <div class="card chartbox" style="margin-bottom:16px;">
       <h3 style="margin-bottom:12px;">Quân số theo tổ đội</h3>
       <div class="chart-canvas-wrap"><canvas id="conQuanSoChart"></canvas></div>
@@ -4002,9 +4022,9 @@ function renderThiCongQuanSo(allRows){
   `;
   conQuanSoChart(allRows);
   mountSparklines([
-    {id:'spark-q0', data:allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>r.workers||0)},
-    {id:'spark-q1', data:allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>r.workers||0)},
-    {id:'spark-q2', data:allRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>r.workers||0)}
+    {id:'spark-q0', data:dailySeries(allRows, r=>r.workers||0), color:QS_ACC[0]},
+    {id:'spark-q1', data:dailySeries(allRows, r=>r.workers||0, 'max'), color:QS_ACC[1]},
+    {id:'spark-q2', data:dailySeries(allRows, r=>r.workers||0), color:QS_ACC[2]}
   ]);
 }
 
