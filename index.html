@@ -587,7 +587,7 @@ function clearLocalData(){
 }
 
 let jsonpCounter = 0;
-function apiGet(action){
+function apiGet(action, extra){
   return new Promise((resolve, reject) => {
     if(!API_URL){ reject(new Error('no API_URL')); return; }
     const cbName = 'sctCb' + (++jsonpCounter);
@@ -596,7 +596,7 @@ function apiGet(action){
     function cleanup(){ delete window[cbName]; script.remove(); clearTimeout(timeout); }
     window[cbName] = (data)=>{ cleanup(); checkAuthResponse(data); resolve(data); };
     script.onerror = ()=>{ cleanup(); reject(new Error('network error')); };
-    script.src = API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(authToken()) + '&callback=' + cbName;
+    script.src = API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(authToken()) + (extra||'') + '&callback=' + cbName;
     document.body.appendChild(script);
   });
 }
@@ -796,6 +796,9 @@ async function syncWrite(action, payload){
     ? ()=>apiGetWrite(action, req)
     : ()=>apiPost(action, req); // payload quá dài (VD nhiều ảnh cũ) — gửi 1 lần, không thử lại được
   const result = await withRetry(attempt, encodedLen < 6000 ? [1500, 4000] : []);
+  // ghi thất bại: dữ liệu trên máy có thể lệch server → lần đồng bộ sau tải đủ lại (không dùng chênh lệch)
+  // gửi kiểu POST (có ảnh) thì không đọc được kết quả thật → cũng tải đủ lại cho chắc
+  if(!result.ok || encodedLen >= 6000) syncVerReset();
   setSyncStatus(result.ok ? 'online' : 'offline');
 }
 function setSyncStatus(status){
@@ -948,12 +951,38 @@ function normalizePhat(rows){
     amount:Number(pick(r,'amount'))||0, note:String(pick(r,'note')||''), reportedBy:String(pick(r,'reportedBy')||''), photos:splitPhotos(pick(r,'photos'))
   }));
 }
+/* ĐỒNG BỘ CHÊNH LỆCH (mức 2): máy nhớ phiên bản từng tab đã tải (LS sct_sync_ver, tự xoá khi đăng xuất
+   vì nằm trong nhóm sct_*). Lần sau gửi kèm → server chỉ gửi tab đã thay đổi; không có gì mới thì
+   không vẽ lại màn hình. Bản ghi quá 6 giờ hoặc vừa có lần ghi thất bại → tải đủ lại cho chắc. */
+const SYNC_VER_KEY = 'sct_sync_ver';
+const SYNC_FULL_MS = 6*3600*1000;
+function syncVerGet(){
+  try{
+    const o = JSON.parse(localStorage.getItem(SYNC_VER_KEY)||'null');
+    if(!o || !o.v || !o.t || Date.now()-o.t > SYNC_FULL_MS) return null;
+    const s = getSession();
+    if(!s || o.u !== s.username) return null;
+    return o.v;
+  }catch(e){ return null; }
+}
+function syncVerSet(v, keepTime){
+  try{
+    const s = getSession(); if(!s || !v) return;
+    const old = keepTime ? JSON.parse(localStorage.getItem(SYNC_VER_KEY)||'null') : null;
+    localStorage.setItem(SYNC_VER_KEY, JSON.stringify({u:s.username, v, t: old && old.t ? old.t : Date.now()}));
+  }catch(e){}
+}
+function syncVerReset(){ try{ localStorage.removeItem(SYNC_VER_KEY); }catch(e){} }
 async function syncAllFromServer(){
   if(!API_URL) return;
   setSyncStatus('syncing');
   try{
-    const data = await apiGet('all');
+    const since = syncVerGet();
+    const data = await apiGet('all', since ? '&since='+encodeURIComponent(JSON.stringify(since)) : '');
     if(data.auth==='expired' || data.error==='unauthorized'){ setSyncStatus('online'); state.hasSyncedOnce = true; return; } // sessionExpired() đã xử lý
+    const DATA_KEYS_ = ['finance','materials','construction','staffCt','staffTd','vatTuChinh','vatTuPhu','congKhauTru','congPhat','settings','projects'];
+    const changed = DATA_KEYS_.filter(k => data[k] !== undefined);
+    const meBefore = JSON.stringify(getSession());
     if(data.users){ save(LS.users, normalizeUsers(data.users)); refreshSessionProjects(); }
     // quyền thật do server xác định — admin đổi quyền/công trình thì máy tự cập nhật, không cần đăng nhập lại
     if(data.me && getSession()){
@@ -973,10 +1002,15 @@ async function syncAllFromServer(){
     if(data.congPhat) rawSet('conPhat', normalizePhat(data.congPhat));
     if(Array.isArray(data.settings)) applyServerSettings(data.settings);
     if(Array.isArray(data.projects)) save(LS.projects, normalizeProjects(data.projects));
-    applyProjectScope();
+    if(changed.length) applyProjectScope();
+    // lưu phiên bản SAU khi đã lưu dữ liệu xong (giữ mốc thời gian lần tải đủ gần nhất khi đây là lần chênh lệch)
+    if(data.v) syncVerSet(data.v, !!data.delta);
     if(isAdminSession()) syncPayments();
     setSyncStatus('online');
+    const firstSync = !state.hasSyncedOnce;
     state.hasSyncedOnce = true;
+    // không có gì thay đổi (tab nào cũng như cũ, quyền như cũ) → khỏi vẽ lại màn hình
+    if(data.delta && !changed.length && JSON.stringify(getSession())===meBefore && !firstSync) return;
     // đang mở form thêm/sửa dở dang (VD người dùng chuyển sang app Camera chụp ảnh rồi quay lại,
     // trình duyệt tự đồng bộ lại khi tab hiện lên) -> KHÔNG render lại, tránh xoá mất lựa chọn/nội
     // dung đang gõ dở (từng bị báo "chọn LTCK lại nhảy sang Công nhật" do form bị vẽ lại giữa chừng).
@@ -1494,6 +1528,7 @@ function renderSyncStatus(){
 }
 function manualResync(){
   if(!API_URL || state.syncStatus==='syncing') return;
+  syncVerReset(); // bấm nút đồng bộ = tải đủ lại toàn bộ
   syncAllFromServer();
 }
 document.addEventListener('visibilitychange', ()=>{
