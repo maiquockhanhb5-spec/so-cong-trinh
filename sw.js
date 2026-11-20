@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sct-shell-v2';
+const CACHE_NAME = 'sct-shell-v3';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(['/'])));
