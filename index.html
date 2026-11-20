@@ -4748,6 +4748,28 @@ function adminSaveEmail(e, username){
   render();
   return false;
 }
+/* đặt lại mật khẩu cho người quên — admin nhập mật khẩu mới rồi báo lại cho người đó.
+   Server lưu dạng mã hoá và đăng xuất mọi máy đang dùng tài khoản này. */
+function adminToggleResetPw(username){ state.resettingPw = state.resettingPw===username ? null : username; state.err.adminPw=null; state.adminPwOk=null; render(); }
+async function adminResetPassword(e, username){
+  e.preventDefault();
+  const pw = e.target.newPw.value;
+  if(pw.length < 6){ state.err.adminPw='Mật khẩu cần ít nhất 6 ký tự.'; render(); return false; }
+  const btn = e.target.querySelector('button[type="submit"]'); if(btn){ btn.disabled = true; btn.textContent = 'Đang lưu…'; }
+  const hash = await sha256Hex(pw);
+  if(!API_URL){ // bản chạy thử cục bộ
+    const users = load(LS.users, []); const idx = users.findIndex(u=>u.username===username);
+    if(idx!==-1){ users[idx] = {...users[idx], password:hash}; save(LS.users, users); }
+    state.resettingPw=null; state.err.adminPw=null; state.adminPwOk=username; render(); return false;
+  }
+  let res;
+  try{ res = await apiGetWrite('saveUser', { data:{ username, password:hash } }); }
+  catch(err){ res = { status:'error', message:'Không kết nối được máy chủ, thử lại sau.' }; }
+  if(!res || res.status!=='success'){ state.err.adminPw = (res && res.message) || 'Đặt lại mật khẩu không thành công.'; render(); return false; }
+  state.resettingPw=null; state.err.adminPw=null; state.adminPwOk=username;
+  render();
+  return false;
+}
 function adminDeleteUser(username){
   save(LS.users, load(LS.users,[]).filter(u=>u.username!==username));
   syncWrite('deleteUser', {username});
@@ -4945,6 +4967,14 @@ function renderAdminAccounts(users){
                   ${state.err.adminEmail?`<div class="error-msg" style="width:100%;">${esc(state.err.adminEmail)}</div>`:''}
                 </form>` : `
                 <div class="meta">Email nhắc quân số: ${u.email?esc(u.email):'<i>chưa có</i>'} <button class="link-btn" onclick="adminEditEmail('${u.username}')">${u.email?'Sửa':'Thêm'} email</button></div>`}
+                ${u.role==='admin' ? '' : (state.resettingPw===u.username ? `
+                <form onsubmit="return adminResetPassword(event,'${u.username}')" style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+                  <input name="newPw" type="text" autocomplete="off" placeholder="Mật khẩu mới (≥ 6 ký tự)" required style="flex:1; min-width:180px; background:var(--surface-2); border:1px solid var(--line); border-radius:8px; color:var(--ink); padding:7px 10px; font-family:inherit; font-size:13px;">
+                  <button class="btn btn-accent" type="submit" style="padding:6px 12px; font-size:12px;">Đặt lại</button>
+                  <button class="link-btn" type="button" onclick="adminToggleResetPw('${u.username}')">Huỷ</button>
+                  ${state.err.adminPw?`<div class="error-msg" style="width:100%;">${esc(state.err.adminPw)}</div>`:''}
+                </form>` : `
+                <div class="meta">Mật khẩu: ${state.adminPwOk===u.username?'<span style="color:var(--green,#22c55e); font-weight:600;">đã đặt lại — máy của người này đã bị đăng xuất</span>':'••••••'} <button class="link-btn" onclick="adminToggleResetPw('${u.username}')">Đặt lại mật khẩu</button></div>`)}
               </div>
               ${u.role==='admin' ? `<span class="chip chip-neutral">Bảo vệ</span>` : (isEditing ? `
                 <form onsubmit="return adminSaveUserModules(event,'${u.username}')">
